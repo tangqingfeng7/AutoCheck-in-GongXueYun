@@ -1,0 +1,29 @@
+groups:
+  - name: automoguding
+    rules:
+      - alert: AutoMoGuDingHighLoginFailureRate
+        expr: sum(automoguding_auth_failures_recent_total{action=~"auth\\.login\\.failed|app\\.login\\.failed"}) > 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AutoMoGuDing authentication failures are elevated"
+          description: "More than 20 authentication failures were recorded in the recent metric window."
+
+      - alert: AutoMoGuDingBatchQueueBacklog
+        expr: sum(automoguding_batch_jobs_total{status=~"queued|running|paused"}) > 20 or sum(automoguding_batch_items_total{status=~"queued|running"}) > 200
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AutoMoGuDing batch queue backlog is elevated"
+          description: "Batch jobs or items have stayed queued/running long enough to indicate worker saturation."
+
+      - alert: AutoMoGuDingHighHttp5xxRate
+        expr: sum(automoguding_http_requests_recent_total{status="5xx"}) / clamp_min(sum(automoguding_http_requests_recent_total), 1) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AutoMoGuDing HTTP 5xx ratio is high"
+          description: "More than 5% of recorded HTTP requests returned 5xx responses over the recent metric window."

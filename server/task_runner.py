@@ -1,0 +1,1125 @@
+import logging
+import os
+import json
+import random
+import time
+from datetime import datetime, timedelta, time as datetime_time
+from typing import Dict, List, Optional, Any, Callable
+
+from server.coreApi.MainLogicApi import ApiClient
+from server.coreApi.AiServiceClient import generate_article
+from server.ai_governance import check_ai_generation_quota
+from server.ai_settings import load_global_ai_settings
+from server.clockin_backfill import (
+    CLOCKIN_TYPE_LABELS,
+    combine_date_time,
+    normalize_clockin_records,
+    parse_clockin_date,
+)
+from server.database import engine
+from server.models import DEFAULT_TENANT_ID
+from server.settings_store import get_setting
+from server.secret_store import decrypt_secret
+from server.util.Config import ConfigManager
+from server.util.MessagePush import MessagePusher
+from server.user_runtime import (
+    build_effective_push_notifications,
+    normalize_smtp_settings,
+    runtime_login_valid,
+)
+from server.util.HelperFunctions import desensitize_name, is_holiday
+from server.util.FileUploader import upload_img
+from server.util.LoggerContext import _log_ctx
+from sqlmodel import Session
+
+logger = logging.getLogger("server.task_runner")
+
+DEFAULT_CLOCKIN_MAKEUP_BATCH_DELAY_SECONDS = 2.0
+MAX_CLOCKIN_MAKEUP_BATCH_DELAY_SECONDS = 30.0
+DEFAULT_CLOCKIN_MAKEUP_RATE_LIMIT_RETRIES = 0
+DEFAULT_CLOCKIN_MAKEUP_RATE_LIMIT_RETRY_SECONDS = 10.0
+MAX_CLOCKIN_MAKEUP_RATE_LIMIT_RETRY_SECONDS = 120.0
+DEFAULT_CLOCKIN_MAKEUP_RATE_LIMIT_COOLDOWN_SECONDS = 60.0
+MAX_CLOCKIN_MAKEUP_RATE_LIMIT_COOLDOWN_SECONDS = 600.0
+
+
+def _clockin_makeup_batch_delay_seconds() -> float:
+    raw = os.getenv("CLOCKIN_MAKEUP_BATCH_DELAY_SECONDS", str(DEFAULT_CLOCKIN_MAKEUP_BATCH_DELAY_SECONDS))
+    try:
+        value = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return DEFAULT_CLOCKIN_MAKEUP_BATCH_DELAY_SECONDS
+    if value < 0:
+        return 0.0
+    return min(value, MAX_CLOCKIN_MAKEUP_BATCH_DELAY_SECONDS)
+
+
+def _clockin_makeup_rate_limit_retries() -> int:
+    raw = os.getenv("CLOCKIN_MAKEUP_RATE_LIMIT_RETRIES", str(DEFAULT_CLOCKIN_MAKEUP_RATE_LIMIT_RETRIES))
+    try:
+        value = int(float(str(raw).strip()))
+    except (TypeError, ValueError):
+        return DEFAULT_CLOCKIN_MAKEUP_RATE_LIMIT_RETRIES
+    return max(value, 0)
+
+
+def _clockin_makeup_rate_limit_retry_seconds() -> float:
+    raw = os.getenv("CLOCKIN_MAKEUP_RATE_LIMIT_RETRY_SECONDS", str(DEFAULT_CLOCKIN_MAKEUP_RATE_LIMIT_RETRY_SECONDS))
+    try:
+        value = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return DEFAULT_CLOCKIN_MAKEUP_RATE_LIMIT_RETRY_SECONDS
+    if value < 0:
+        return 0.0
+    return min(value, MAX_CLOCKIN_MAKEUP_RATE_LIMIT_RETRY_SECONDS)
+
+
+def _clockin_makeup_rate_limit_cooldown_seconds() -> float:
+    raw = os.getenv("CLOCKIN_MAKEUP_RATE_LIMIT_COOLDOWN_SECONDS", str(DEFAULT_CLOCKIN_MAKEUP_RATE_LIMIT_COOLDOWN_SECONDS))
+    try:
+        value = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return DEFAULT_CLOCKIN_MAKEUP_RATE_LIMIT_COOLDOWN_SECONDS
+    if value < 0:
+        return 0.0
+    return min(value, MAX_CLOCKIN_MAKEUP_RATE_LIMIT_COOLDOWN_SECONDS)
+
+
+def _is_clockin_rate_limited(result: Dict[str, Any]) -> bool:
+    if not isinstance(result, dict) or result.get("status") != "fail":
+        return False
+    text = f"{result.get('message') or ''} {json.dumps(result.get('details') or {}, ensure_ascii=False)}"
+    patterns = (
+        "请求过于频繁",
+        "操作过于频繁",
+        "IP请求过于频繁",
+        "IP非法请求过多",
+        "非法请求过多",
+        "已限制访问",
+        "429",
+        "too many requests",
+        "rate limit",
+    )
+    lower = text.lower()
+    return any(item.lower() in lower for item in patterns)
+
+
+def _safe_perform_clock_in_makeup(
+    api_client: ApiClient,
+    config: ConfigManager,
+    target_date: str,
+    target_type: Optional[str],
+    preauthorization_hooks: Any = None,
+) -> Dict[str, Any]:
+    try:
+        return perform_clock_in_makeup(
+            api_client,
+            config,
+            target_date,
+            target_type=target_type,
+            preauthorization_hooks=preauthorization_hooks,
+        )
+    except Exception as exc:
+        logger.error("补卡 %s 执行异常: %s", target_date, exc)
+        return {
+            "status": "fail",
+            "message": f"补卡失败: {exc}",
+            "task_type": "补卡",
+            "details": {
+                "补卡日期": target_date,
+                "补卡类型": target_type or "START",
+            },
+        }
+
+
+def _with_makeup_retry_details(
+    result: Dict[str, Any],
+    retries: int,
+    retry_wait_seconds: float,
+    retry_wait_total_seconds: float,
+    rate_limited: bool,
+    proxy_rotations: int = 0,
+) -> Dict[str, Any]:
+    if not rate_limited and retries <= 0 and proxy_rotations <= 0:
+        return result
+    details = result.get("details")
+    if not isinstance(details, dict):
+        details = {}
+    result["details"] = {
+        **details,
+        "频繁重试次数": retries,
+        "频繁重试等待秒": retry_wait_seconds,
+        "频繁重试总等待秒": retry_wait_total_seconds,
+        "代理切换次数": proxy_rotations,
+    }
+    return result
+
+
+def _rotate_clockin_proxy(api_client: ApiClient, reason: str) -> bool:
+    proxy_urls = getattr(api_client, "_proxy_urls", None)
+    proxy_fetch_url = getattr(api_client, "_proxy_fetch_url", None)
+    if not proxy_fetch_url and (not isinstance(proxy_urls, list) or len(proxy_urls) < 2):
+        return False
+    rotate = getattr(api_client, "rotate_proxy", None)
+    if not callable(rotate):
+        return False
+    try:
+        return bool(rotate(reason=reason))
+    except TypeError:
+        return bool(rotate())
+    except Exception as exc:
+        logger.warning("补卡代理切换失败: %s", exc)
+        return False
+
+
+def _perform_clock_in_makeup_with_rate_limit_retry(
+    api_client: ApiClient,
+    config: ConfigManager,
+    target_date: str,
+    target_type: Optional[str],
+    retry_count: int,
+    retry_seconds: float,
+    preauthorization_hooks: Any = None,
+) -> tuple[Dict[str, Any], int, bool, int]:
+    # 考勤是有副作用的写操作。命中频率/IP限制后更换出口并重放请求会放大
+    # 风控信号，也可能在响应丢失时造成重复提交，因此只执行一次并立即停止。
+    result = _safe_perform_clock_in_makeup(
+        api_client,
+        config,
+        target_date,
+        target_type=target_type,
+        preauthorization_hooks=preauthorization_hooks,
+    )
+    rate_limited = _is_clockin_rate_limited(result)
+    return (
+        _with_makeup_retry_details(
+            result,
+            0,
+            retry_seconds,
+            0.0,
+            rate_limited,
+            0,
+        ),
+        0,
+        rate_limited,
+        0,
+    )
+
+
+def _month_bounds(dt: datetime) -> tuple[datetime, datetime]:
+    start = dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    next_month = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    end = next_month - timedelta(days=1)
+    return start, end
+
+
+def _parse_report_target(report_type: str, target_period: Optional[str]) -> Optional[datetime]:
+    if not target_period:
+        return None
+    raw = str(target_period).strip()
+    try:
+        if report_type == "month":
+            return datetime.strptime(raw[:7], "%Y-%m")
+        return datetime.strptime(raw[:10], "%Y-%m-%d")
+    except Exception:
+        return None
+
+
+def _week_bounds(dt: datetime) -> tuple[str, str]:
+    start = dt - timedelta(days=dt.weekday())
+    end = start + timedelta(days=6)
+    return start.strftime("%Y-%m-%d 00:00:00"), end.strftime("%Y-%m-%d 23:59:59")
+
+
+def _same_report_period(report: Dict[str, Any], report_type: str, current_time: datetime, weeks_label: str) -> bool:
+    try:
+        if report_type == "day":
+            ts = str(report.get("createTime") or report.get("reportTime") or "")[:10]
+            return ts == current_time.strftime("%Y-%m-%d")
+        if report_type == "week":
+            start, end = _week_bounds(current_time)
+            report_start = str(report.get("startTime") or "")[:10]
+            report_end = str(report.get("endTime") or "")[:10]
+            if report_start or report_end:
+                return report_start == start[:10] and report_end == end[:10]
+            ts = str(report.get("reportTime") or "")[:10]
+            if ts:
+                report_time = datetime.strptime(ts, "%Y-%m-%d")
+                report_week_start = report_time - timedelta(days=report_time.weekday())
+                return report_week_start.strftime("%Y-%m-%d") == start[:10]
+            return False
+        if report_type == "month":
+            target_month = current_time.strftime("%Y-%m")
+            yearmonth = str(report.get("yearmonth") or "")[:7]
+            if yearmonth:
+                return yearmonth == target_month
+            return str(report.get("reportTime") or "")[:7] == target_month
+    except Exception:
+        return False
+    return False
+
+
+def _tenant_id_from_config(config_data: Dict[str, Any] | None) -> str:
+    if not isinstance(config_data, dict):
+        return DEFAULT_TENANT_ID
+    return str(config_data.get("tenant_id") or config_data.get("tenantId") or DEFAULT_TENANT_ID).strip() or DEFAULT_TENANT_ID
+
+
+def _decode_stored_smtp_settings(value: Any) -> Dict[str, Any]:
+    data = dict(value) if isinstance(value, dict) else {}
+    smtp = dict((data or {}).get("smtp") or {})
+    encrypted_password = str(smtp.get("password") or "").strip()
+    if encrypted_password:
+        try:
+            smtp["password"] = decrypt_secret(encrypted_password)
+        except Exception:
+            # 数据库里的 SMTP 授权码必须能由本项目密钥解开；绝不能把密文
+            # 直接交给 SMTP 服务端，也不把损坏的密文当作明文回退。
+            smtp["password"] = ""
+    return normalize_smtp_settings(smtp)
+
+
+def _load_global_smtp_settings(tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:
+    with Session(engine) as session:
+        row = get_setting(session, "notifications", tenant_id)
+        if not row and tenant_id != DEFAULT_TENANT_ID:
+            row = get_setting(session, "notifications", DEFAULT_TENANT_ID)
+        value = row.value if row and isinstance(row.value, dict) else {}
+    return _decode_stored_smtp_settings(value)
+
+
+def _load_global_ai_settings(tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:
+    with Session(engine) as session:
+        return load_global_ai_settings(session, tenant_id)
+
+
+def _apply_global_ai_settings(config_data: Dict[str, Any]) -> Dict[str, Any]:
+    ai_settings = _load_global_ai_settings(_tenant_id_from_config(config_data))
+    if (
+        str(ai_settings.get("apiUrl") or "").strip()
+        or str(ai_settings.get("apikey") or "").strip()
+        or str(ai_settings.get("model") or "").strip()
+    ):
+        config_data.setdefault("config", {})["ai"] = ai_settings
+    return config_data
+
+
+def perform_clock_in(
+    api_client: ApiClient,
+    config: ConfigManager,
+    forced_checkin_type: Optional[str] = None,
+    target_time: Optional[datetime] = None,
+    replace: bool = False,
+    out_register_no: Optional[str] = None,
+    preauthorization_hooks: Any = None,
+) -> Dict[str, Any]:
+    """执行打卡操作"""
+    try:
+        current_time = target_time or datetime.now()
+        current_hour = current_time.hour
+        address = config.get_value("config.clockIn.location.address")
+
+        # 确定打卡类型
+        if forced_checkin_type in ("START", "END"):
+            checkin_type = forced_checkin_type
+            display_type = CLOCKIN_TYPE_LABELS.get(checkin_type, checkin_type)
+        else:
+            if current_hour < 12:
+                checkin_type = "START"
+            else:
+                checkin_type = "END"
+            display_type = CLOCKIN_TYPE_LABELS.get(checkin_type, checkin_type)
+
+        # 检查配置：是否跳过节假日/自定义日期
+        clock_in_mode = config.get_value("config.clockIn.mode")
+        special_clock_in = config.get_value("config.clockIn.specialClockIn")
+
+        should_skip = False
+        skip_message = ""
+
+        if not replace and clock_in_mode == "holiday" and is_holiday(current_time):
+            if not special_clock_in:
+                should_skip = True
+                skip_message = "今天是休息日，已跳过打卡"
+            else:
+                checkin_type = "HOLIDAY"
+                display_type = "休息/节假日"
+
+        elif not replace and clock_in_mode == "custom":
+            today_weekday = current_time.weekday() + 1
+            custom_days = config.get_value("config.clockIn.customDays") or []
+            if today_weekday not in custom_days:
+                if not special_clock_in:
+                    should_skip = True
+                    skip_message = "今天不在设置打卡时间范围内，已跳过打卡"
+                else:
+                    checkin_type = "HOLIDAY"
+                    display_type = "休息/节假日"
+
+        if should_skip:
+            return {
+                "status": "skip",
+                "message": skip_message,
+                "task_type": "打卡",
+                "details": {
+                    "打卡类型": display_type,
+                    "打卡时间": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "打卡地点": address,
+                },
+            }
+
+        start_time, end_time = _month_bounds(current_time)
+        checkin_records = api_client.get_checkin_records(start_time, end_time)
+        last_checkin_info = checkin_records[0] if checkin_records else {}
+
+        # 检查是否已经打过卡
+        record_date = current_time.strftime("%Y-%m-%d")
+        for item in normalize_clockin_records(checkin_records):
+            if item["date"] == record_date and item["type"] == checkin_type:
+                logger.info(f"{record_date} {display_type} 卡已打，无需重复打卡")
+                return {
+                    "status": "skip",
+                    "message": f"{record_date} {display_type} 卡已打，无需重复打卡",
+                    "task_type": "打卡",
+                    "details": {
+                        "record_confirmed": True,
+                        "confirmation_state": "confirmed",
+                        "server_time": item.get("time") or "",
+                        "attendance_date": record_date,
+                        "target_type": checkin_type,
+                        "打卡类型": display_type,
+                        "上次打卡时间": item.get("time") or "",
+                        "打卡地点": address,
+                    },
+                }
+
+        user_name = desensitize_name(config.get_value("userInfo.nikeName"))
+        logger.info(f"用户 {user_name} 开始 {display_type} 打卡")
+
+        # 打卡图片和备注
+        img_count = config.get_value("config.clockIn.imageCount")
+        if not isinstance(img_count, int) or img_count < 0:
+            img_count = 1
+            
+        attachments = upload_img(
+            api_client.get_upload_token(),
+            config.get_value("userInfo.orgJson.snowFlakeId"),
+            config.get_value("userInfo.userId"),
+            img_count,
+        )
+
+        description_list = config.get_value("config.clockIn.description")
+        description = random.choice(description_list) if description_list else None
+
+        # 设置打卡信息
+        checkin_info = {
+            "type": checkin_type,
+            "lastDetailAddress": last_checkin_info.get("address"),
+            "attachments": attachments or None,
+            "description": description,
+            "createTime": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "attendenceTime": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "isReplace": 1 if replace else None,
+        }
+        # APK 官方流程要求先提交当前考勤，由服务端用 304 建立本次
+        # attendanceId，再为这一笔事务创建支付宝登记。历史 outRegisterNo
+        # 不能预先注入，也不能跨日期/类型复用。
+        if out_register_no:
+            checkin_info["outRegisterNo"] = out_register_no
+
+        submit = (
+            api_client.submit_clock_in_replace
+            if replace
+            else api_client.submit_clock_in
+        )
+        submit_result = submit(checkin_info)
+
+        if isinstance(submit_result, dict) and submit_result.get("status") in {
+            "verification_required",
+            "face_verification_required",
+        }:
+            details = {"target_type": checkin_type, "attendance_date": record_date}
+            message = "补卡触发支付宝安全验证，本次补卡未完成"
+            for key in ("attendanceId", "createTime"):
+                value = submit_result.get(key)
+                if value:
+                    details[key] = value
+            if submit_result.get("status") == "face_verification_required":
+                details.update(
+                    {
+                        "verification_type": "face",
+                        "registerUrl": submit_result.get("registerUrl"),
+                    }
+                )
+                message = "需要完成支付宝人脸识别，完成后确认服务器考勤记录"
+            elif not replace:
+                registration = api_client.create_alipay_clockin_verification()
+                details.update(
+                    {
+                        "verification_type": "account",
+                        "outRegisterNo": registration.get("outRegisterNo"),
+                        "registerUrl": registration.get("registerUrl"),
+                    }
+                )
+                message = "需要完成支付宝安全验证，请验证后检查本次考勤记录"
+            from server.clockin_preauthorization import ClockInPreauthorizationHooks
+            if details.get("registerUrl") and isinstance(preauthorization_hooks, ClockInPreauthorizationHooks):
+                from server.verification_sessions import create_session
+                details["verification_session_id"] = create_session(
+                    preauthorization_hooks.user_id, preauthorization_hooks.tenant_id,
+                    record_date, checkin_type, details, db_engine=preauthorization_hooks.db_engine)
+            return {
+                "status": "fail",
+                "message": message,
+                "task_type": "打卡",
+                "details": details,
+            }
+        from server.attendance_confirmation import confirm_attendance
+        confirmation = confirm_attendance(api_client, record_date, checkin_type)
+        if not confirmation["record_confirmed"]:
+            return {"status": "pending", "task_type": "打卡",
+                    "message": "提交已响应，服务端考勤结果待确认；不会自动重复提交",
+                    "details": confirmation}
+        logger.info(f"用户 {user_name} {display_type} 打卡成功，服务端记录已确认")
+
+        return {
+            "status": "success",
+            "message": f"{display_type}打卡成功",
+            "task_type": "打卡",
+            "details": {
+                **confirmation,
+                "姓名": config.get_value("userInfo.nikeName"),
+                "打卡类型": display_type,
+                "打卡时间": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+                "打卡地点": address,
+                "补卡": "是" if replace else "否",
+            },
+        }
+    except Exception as e:
+        logger.error(f"打卡失败: {e}")
+        err = str(e) or "unknown"
+        if "结果可能已被服务器接收" in err:
+            return {"status": "pending", "task_type": "打卡",
+                    "message": "提交响应中断，结果待确认；不会自动重复提交",
+                    "details": {"record_confirmed": False, "confirmation_state": "submit_unknown",
+                                "attendance_date": current_time.strftime("%Y-%m-%d"),
+                                "target_type": checkin_type}}
+        tips = []
+        if "clockIn.location.address" in err:
+            tips.append("请先在用户配置中填写打卡地址，或使用“账号地址填充”")
+        if "planId" in err:
+            tips.append("请先获取并保存 planId（非教师账号需要）")
+        if "token" in err or "Token" in err:
+            tips.append("账号 token 失效时会自动重登；如持续失败请检查账号/密码")
+        details = {
+            "姓名": config.get_value("userInfo.nikeName"),
+            "打卡时间": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "打卡地点": config.get_value("config.clockIn.location.address"),
+        }
+        if tips:
+            details["建议"] = "；".join(tips)
+        return {"status": "fail", "message": f"打卡失败: {err}", "task_type": "打卡", "details": details}
+
+
+def perform_clock_in_makeup(
+    api_client: ApiClient,
+    config: ConfigManager,
+    target_date: Optional[str],
+    target_type: Optional[str] = None,
+    preauthorization_hooks: Any = None,
+) -> Dict[str, Any]:
+    day = parse_clockin_date(target_date)
+    if not day:
+        return {"status": "fail", "message": "补卡日期格式错误", "task_type": "补卡"}
+    selected_type = str(target_type or "START").strip().upper()
+    if selected_type and selected_type not in ("START", "END"):
+        return {"status": "fail", "message": "补卡类型错误", "task_type": "补卡"}
+
+    month_start, month_end = _month_bounds(datetime.combine(day, datetime_time()))
+    records = api_client.get_checkin_records(month_start, month_end)
+    existing_types = {item["type"] for item in normalize_clockin_records(records) if item["date"] == day.strftime("%Y-%m-%d")}
+    missing_types = [item for item in ("START", "END") if item not in existing_types]
+    target_types = [selected_type] if selected_type else missing_types
+    target_types = [item for item in target_types if item in missing_types]
+    if not target_types:
+        label = CLOCKIN_TYPE_LABELS.get(selected_type, selected_type) if selected_type else "上班和下班"
+        return {
+            "status": "skip",
+            "message": f"{day.strftime('%Y-%m-%d')} 已完成{label}打卡，无需补卡",
+            "task_type": "补卡",
+            "details": {
+                "补卡日期": day.strftime("%Y-%m-%d"),
+                "补卡类型": label,
+            },
+        }
+
+    schedule = config.get_value("config.clockIn.schedule") or {}
+    if not isinstance(schedule, dict):
+        schedule = {}
+    results: List[Dict[str, Any]] = []
+    for checkin_type in target_types:
+        hhmm = schedule.get("startTime") if checkin_type == "START" else schedule.get("endTime")
+        default_hhmm = "07:30" if checkin_type == "START" else "18:00"
+        target_time = combine_date_time(day, hhmm, default_hhmm)
+        results.append(
+            perform_clock_in(
+                api_client,
+                config,
+                forced_checkin_type=checkin_type,
+                target_time=target_time,
+                replace=True,
+                preauthorization_hooks=preauthorization_hooks,
+            )
+        )
+
+    failed = [item for item in results if item.get("status") == "fail"]
+    succeeded = [item for item in results if item.get("status") == "success"]
+    pending = [item for item in results if item.get("status") == "pending"]
+    labels = [CLOCKIN_TYPE_LABELS.get(item, item) for item in target_types]
+    if failed:
+        status = "fail"
+        message = f"{day.strftime('%Y-%m-%d')} 补卡未全部完成"
+    elif pending:
+        status = "pending"
+        message = f"{day.strftime('%Y-%m-%d')} 补卡结果待服务端确认，不会重复提交"
+    elif succeeded:
+        status = "success"
+        message = f"{day.strftime('%Y-%m-%d')} {'、'.join(labels)}补卡完成"
+    else:
+        status = "skip"
+        message = f"{day.strftime('%Y-%m-%d')} 补卡已跳过"
+    return {
+        "status": status,
+        "message": message,
+        "task_type": "补卡",
+        "details": {
+            "补卡日期": day.strftime("%Y-%m-%d"),
+            "补卡类型": "、".join(labels),
+        },
+        "items": results,
+    }
+
+
+def _normalize_makeup_dates(target_dates: Optional[List[Any]]) -> List[str]:
+    dates: List[str] = []
+    seen = set()
+    for item in target_dates or []:
+        day = parse_clockin_date(item)
+        if not day:
+            return []
+        value = day.strftime("%Y-%m-%d")
+        if value not in seen:
+            seen.add(value)
+            dates.append(value)
+    return dates
+
+
+def perform_clock_in_makeup_many(
+    api_client: ApiClient,
+    config: ConfigManager,
+    target_dates: Optional[List[Any]],
+    target_type: Optional[str] = None,
+    delay_seconds: Optional[float] = None,
+    rate_limit_retries: Optional[int] = None,
+    rate_limit_retry_seconds: Optional[float] = None,
+    rate_limit_cooldown_seconds: Optional[float] = None,
+    preauthorization_hooks: Any = None,
+) -> Dict[str, Any]:
+    dates = _normalize_makeup_dates(target_dates)
+    if not dates:
+        return {"status": "fail", "message": "请选择有效的补卡日期", "task_type": "补卡"}
+
+    delay = _clockin_makeup_batch_delay_seconds() if delay_seconds is None else max(float(delay_seconds), 0.0)
+    retry_count = _clockin_makeup_rate_limit_retries() if rate_limit_retries is None else max(int(rate_limit_retries), 0)
+    retry_seconds = _clockin_makeup_rate_limit_retry_seconds() if rate_limit_retry_seconds is None else max(float(rate_limit_retry_seconds), 0.0)
+    cooldown_seconds = (
+        _clockin_makeup_rate_limit_cooldown_seconds()
+        if rate_limit_cooldown_seconds is None
+        else max(float(rate_limit_cooldown_seconds), 0.0)
+    )
+    results = []
+    rate_limit_retry_total = 0
+    rate_limit_cooldown_total = 0
+    proxy_rotation_total = 0
+    current_delay = delay
+    stopped_by_rate_limit = False
+    unexecuted_count = 0
+    for index, item in enumerate(dates):
+        if index > 0 and current_delay > 0:
+            time.sleep(current_delay)
+        result, retries_used, rate_limited, proxy_rotations = _perform_clock_in_makeup_with_rate_limit_retry(
+            api_client,
+            config,
+            item,
+            target_type=target_type,
+            retry_count=retry_count,
+            retry_seconds=retry_seconds,
+            preauthorization_hooks=preauthorization_hooks,
+        )
+        rate_limit_retry_total += retries_used
+        proxy_rotation_total += proxy_rotations
+        if rate_limited:
+            rate_limit_cooldown_total += 1
+            current_delay = max(current_delay, cooldown_seconds)
+        results.append(result)
+        if rate_limited and _is_clockin_rate_limited(result):
+            stopped_by_rate_limit = True
+            remaining_dates = dates[index + 1 :]
+            unexecuted_count = len(remaining_dates)
+            type_label = CLOCKIN_TYPE_LABELS.get(str(target_type or "START").upper(), target_type or "START")
+            for remaining_date in remaining_dates:
+                results.append(
+                    {
+                        "status": "skip",
+                        "message": f"{remaining_date} 因请求过于频繁已暂停补卡，请稍后重试",
+                        "task_type": "补卡",
+                        "details": {
+                            "补卡日期": remaining_date,
+                            "补卡类型": type_label,
+                            "跳过原因": "请求过于频繁，已停止后续补卡",
+                        },
+                    }
+                )
+            break
+    failed = [item for item in results if item.get("status") == "fail"]
+    succeeded = [item for item in results if item.get("status") == "success"]
+    skipped = [item for item in results if item.get("status") == "skip"]
+    pending = [item for item in results if item.get("status") == "pending"]
+    if stopped_by_rate_limit:
+        status = "fail"
+        message = f"{len(dates)} 天补卡未全部完成，已因请求过于频繁暂停剩余日期"
+    elif failed:
+        status = "fail"
+        message = f"{len(dates)} 天补卡未全部完成"
+    elif pending:
+        status = "pending"
+        message = f"{len(dates)} 天补卡含待确认结果，不会重复提交"
+    elif succeeded:
+        status = "success"
+        message = f"{len(dates)} 天补卡完成"
+    else:
+        status = "skip"
+        message = f"{len(dates)} 天补卡已跳过"
+    return {
+        "status": status,
+        "message": message,
+        "task_type": "补卡",
+        "details": {
+            "补卡天数": len(dates),
+            "成功": len(succeeded),
+            "失败": len(failed),
+            "跳过": len(skipped),
+            "待确认": len(pending),
+            "请求间隔秒": delay,
+            "当前请求间隔秒": current_delay,
+            "频繁重试次数": rate_limit_retry_total,
+            "频繁重试最大次数": retry_count,
+            "频繁重试初始等待秒": retry_seconds,
+            "代理切换次数": proxy_rotation_total,
+            "频繁冷却次数": rate_limit_cooldown_total,
+            "频繁冷却间隔秒": cooldown_seconds,
+            "因频繁请求提前停止": stopped_by_rate_limit,
+            "未执行": unexecuted_count,
+        },
+        "items": results,
+    }
+
+
+def _submit_report_common(
+    api_client: ApiClient,
+    config: ConfigManager,
+    report_type: str,
+    title_func: Callable[[int], str],
+    check_time_func: Callable[[datetime], bool],
+    get_submitted_func: Callable[[], Dict[str, Any]],
+    paper_num_key: str,
+    image_count_key: str,
+    task_name: str,
+    form_type: int,
+    force_report: bool = False,
+    target_period: Optional[str] = None,
+) -> Dict[str, Any]:
+    """通用日报/周报/月报提交逻辑"""
+
+    # 将 report_type 映射到配置键
+    config_key_map = {"day": "daily", "week": "weekly", "month": "monthly"}
+    config_key = config_key_map.get(report_type)
+
+    if not force_report and not config.get_value(f"config.reportSettings.{config_key}.enabled"):
+        logger.info(f"用户未开启{task_name}功能，跳过")
+        now = datetime.now()
+        return {
+            "status": "skip",
+            "message": f"用户未开启{task_name}功能",
+            "task_type": task_name,
+            "details": {
+                "提交时间": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "开关": "未开启",
+            },
+        }
+
+    target_time = _parse_report_target(report_type, target_period)
+    current_time = target_time or datetime.now()
+
+    # 检查提交时间
+    if not force_report and not check_time_func(current_time):
+        logger.info(f"未到{task_name}提交时间")
+        return {
+            "status": "skip",
+            "message": f"未到{task_name}提交时间",
+            "task_type": task_name,
+            "details": {
+                "提交时间": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+                "开关": "已开启",
+            },
+        }
+
+    try:
+        # 检查是否已提交
+        submitted_reports_info = get_submitted_func()
+        submitted_reports = submitted_reports_info.get("data", [])
+
+        count = submitted_reports_info.get("flag", 0) + 1
+        title = title_func(count)
+        weeks_label = f"第{count}周"
+
+        if submitted_reports:
+            should_skip = False
+            for report in submitted_reports:
+                if _same_report_period(report, report_type, current_time, weeks_label):
+                    should_skip = True
+                    break
+
+            if should_skip:
+                logger.info(f"本周期已经提交过{task_name}，跳过")
+                return {
+                    "status": "skip",
+                    "message": f"本周期已经提交过{task_name}",
+                    "task_type": task_name,
+                }
+
+        # 生成内容
+        job_info = api_client.get_job_info()
+        check_ai_generation_quota(
+            tenant_id=str(config.get_value("tenant_id") or DEFAULT_TENANT_ID),
+            user_id=config.get_value("userInfo.userId"),
+            raise_http_exception=False,
+        )
+        content = generate_article(
+            config,
+            title,
+            job_info,
+            config.get_value(paper_num_key),
+            (submitted_reports or [])[:4]
+        )
+
+        # 上传图片
+        img_count = config.get_value(image_count_key)
+        if not isinstance(img_count, int) or img_count < 0:
+            img_count = 1
+
+        attachments = upload_img(
+            api_client.get_upload_token(),
+            config.get_value("userInfo.orgJson.snowFlakeId"),
+            config.get_value("userInfo.userId"),
+            img_count,
+        )
+
+        report_info = {
+            "title": title,
+            "content": content,
+            "attachments": attachments,
+            "reportType": report_type,
+            "jobId": job_info.get("jobId", None),
+            "reportTime": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "formFieldDtoList": api_client.get_from_info(form_type),
+        }
+
+        # 特定类型的额外字段
+        extra_details = {}
+        if report_type == "week":
+            start_date, end_date = _week_bounds(current_time)
+            report_info["startTime"] = start_date
+            report_info["endTime"] = end_date
+            report_info["weeks"] = weeks_label
+            extra_details = {
+                "开始时间": report_info["startTime"],
+                "结束时间": report_info["endTime"],
+            }
+        elif report_type == "month":
+            report_info["yearmonth"] = current_time.strftime("%Y-%m")
+            extra_details = {"提交月份": report_info["yearmonth"]}
+
+        api_client.submit_report(report_info)
+
+        logger.info(f"{title}已提交")
+
+        return {
+            "status": "success",
+            "message": f"{title}已提交",
+            "task_type": task_name,
+            "details": {
+                "标题": title,
+                "提交时间": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+                "附件": attachments,
+                **extra_details,
+            },
+            "report_content": content,
+        }
+
+    except Exception as e:
+        logger.error(f"{task_name}提交失败: {e}")
+        return {
+            "status": "fail",
+            "message": f"{task_name}提交失败: {str(e)}",
+            "task_type": task_name,
+        }
+
+
+def submit_daily_report(
+    api_client: ApiClient,
+    config: ConfigManager,
+    force_report: bool = False,
+    target_period: Optional[str] = None,
+) -> Dict[str, Any]:
+    """提交日报"""
+    submit_days = config.get_value("config.reportSettings.daily.submitDays")
+    submit_time = config.get_value("config.reportSettings.daily.submitTime")
+
+    def parse_submit_time(value) -> tuple[int, int]:
+        if isinstance(value, str) and ":" in value:
+            try:
+                hh, mm = value.split(":", 1)
+                return int(hh), int(mm)
+            except Exception:
+                return 12, 0
+        return 12, 0
+
+    def check_time(t: datetime) -> bool:
+        hh, mm = parse_submit_time(submit_time)
+        if (t.hour < hh) or (t.hour == hh and t.minute < mm):
+            return False
+        if submit_days is None:
+            return True
+        if isinstance(submit_days, list):
+            if len(submit_days) == 0:
+                return False
+            return (t.weekday() + 1) in submit_days
+        return True
+
+    return _submit_report_common(
+        api_client=api_client,
+        config=config,
+        report_type="day",
+        title_func=lambda c: f"第{c}天日报",
+        check_time_func=check_time,
+        get_submitted_func=lambda: api_client.get_submitted_reports_info("day"),
+        paper_num_key="planInfo.planPaper.dayPaperNum",
+        image_count_key="config.reportSettings.daily.imageCount",
+        task_name="日报提交",
+        form_type=7,
+        force_report=force_report,
+        target_period=target_period,
+    )
+
+
+def submit_weekly_report(
+    config: ConfigManager,
+    api_client: ApiClient,
+    force_report: bool = False,
+    target_period: Optional[str] = None,
+) -> Dict[str, Any]:
+    """提交周报"""
+    submit_day = config.get_value("config.reportSettings.weekly.submitTime")
+    submit_at = config.get_value("config.reportSettings.weekly.submitAt") or "12:00"
+
+    def parse_submit_time(value) -> tuple[int, int]:
+        if isinstance(value, str) and ":" in value:
+            try:
+                hh, mm = value.split(":", 1)
+                return int(hh), int(mm)
+            except Exception:
+                return 12, 0
+        return 12, 0
+
+    def check_time(t: datetime) -> bool:
+        hh, mm = parse_submit_time(submit_at)
+        if not (t.weekday() + 1 == submit_day):
+            return False
+        return (t.hour > hh) or (t.hour == hh and t.minute >= mm)
+
+    return _submit_report_common(
+        api_client=api_client,
+        config=config,
+        report_type="week",
+        title_func=lambda c: f"第{c}周周报",
+        check_time_func=check_time,
+        get_submitted_func=lambda: api_client.get_submitted_reports_info("week"),
+        paper_num_key="planInfo.planPaper.weekPaperNum",
+        image_count_key="config.reportSettings.weekly.imageCount",
+        task_name="周报提交",
+        form_type=8,
+        force_report=force_report,
+        target_period=target_period,
+    )
+
+
+def submit_monthly_report(
+    config: ConfigManager,
+    api_client: ApiClient,
+    force_report: bool = False,
+    target_period: Optional[str] = None,
+) -> Dict[str, Any]:
+    """提交月报"""
+    submit_day = config.get_value("config.reportSettings.monthly.submitTime")
+    submit_at = config.get_value("config.reportSettings.monthly.submitAt") or "12:00"
+    # 默认每月20号
+    if not isinstance(submit_day, int):
+        submit_day = 20
+
+    def parse_submit_time(value) -> tuple[int, int]:
+        if isinstance(value, str) and ":" in value:
+            try:
+                hh, mm = value.split(":", 1)
+                return int(hh), int(mm)
+            except Exception:
+                return 12, 0
+        return 12, 0
+
+    def check_time(t: datetime) -> bool:
+        next_month = t.replace(day=28) + timedelta(days=4)
+        last_day_of_month = (next_month - timedelta(days=next_month.day)).day
+        target_day = min(submit_day, last_day_of_month)
+        if t.day != target_day:
+            return False
+        hh, mm = parse_submit_time(submit_at)
+        return (t.hour > hh) or (t.hour == hh and t.minute >= mm)
+
+    return _submit_report_common(
+        api_client=api_client,
+        config=config,
+        report_type="month",
+        title_func=lambda c: f"第{c}月月报",
+        check_time_func=check_time,
+        get_submitted_func=lambda: api_client.get_submitted_reports_info("month"),
+        paper_num_key="planInfo.planPaper.monthPaperNum",
+        image_count_key="config.reportSettings.monthly.imageCount",
+        task_name="月报提交",
+        form_type=9,
+        force_report=force_report,
+        target_period=target_period,
+    )
+
+
+def run_task_by_config(
+    config_data: Dict[str, Any],
+    forced_checkin_type: Optional[str] = None,
+    specific_task_type: Optional[str] = None,
+    force_report: bool = False,
+    target_period: Optional[str] = None,
+    preauthorization_hooks: Any = None,
+) -> List[Dict[str, Any]]:
+    """根据配置字典执行任务"""
+    config_data = _apply_global_ai_settings(config_data)
+    config = ConfigManager(config=config_data)
+    
+    # 设置日志上下文
+    try:
+        nickname = desensitize_name(config.get_value("userInfo.nikeName")) or "?"
+        _log_ctx.tag = f"{nickname}"
+    except Exception:
+        _log_ctx.tag = "-"
+
+    results: List[Dict[str, Any]] = []
+    pusher = None
+
+    try:
+        push_services = build_effective_push_notifications(
+                user_push=config.get_value("config.pushNotifications"),
+                smtp_settings=_load_global_smtp_settings(_tenant_id_from_config(config_data)),
+            )
+        for service in push_services:
+            service["tenant_id"] = _tenant_id_from_config(config_data)
+        pusher = MessagePusher(push_services)
+
+        api_client = ApiClient(config)
+        if not runtime_login_valid(config.get_value("userInfo")):
+            api_client.login()
+
+        logger.info("获取用户信息成功")
+
+        if config.get_value("userInfo.userType") == "teacher":
+            logger.info("用户身份为教师，跳过计划信息检查")
+        elif not config.get_value("planInfo.planId"):
+            api_client.fetch_internship_plan()
+            logger.info("已获取实习计划信息")
+
+        logger.info(
+            f"开始执行：{desensitize_name(config.get_value('userInfo.nikeName'))}"
+        )
+
+        default_tasks = [
+            (
+                "clock_in",
+                lambda: perform_clock_in(
+                    api_client,
+                    config,
+                    forced_checkin_type,
+                    preauthorization_hooks=preauthorization_hooks,
+                ),
+            ),
+            ("daily_report", lambda: submit_daily_report(api_client, config, force_report=force_report, target_period=target_period)),
+            ("weekly_report", lambda: submit_weekly_report(config, api_client, force_report=force_report, target_period=target_period)),
+            ("monthly_report", lambda: submit_monthly_report(config, api_client, force_report=force_report, target_period=target_period)),
+        ]
+
+        def run_clock_in_makeup():
+            # 补卡全流程保持直接网络出口，不在验证码/提交之间切换代理。
+            return perform_clock_in_makeup(
+                api_client,
+                config,
+                target_period,
+                preauthorization_hooks=preauthorization_hooks,
+            )
+
+        manual_only_tasks = [
+            ("clock_in_makeup", run_clock_in_makeup),
+        ]
+        all_tasks = default_tasks + (manual_only_tasks if specific_task_type else [])
+
+        results = []
+        for t_type, t_func in all_tasks:
+            # 如果指定了任务类型，则只执行匹配的任务
+            # report 表示所有报告任务
+            if specific_task_type:
+                if specific_task_type == "report":
+                    if "report" not in t_type:
+                        continue
+                elif specific_task_type != t_type:
+                    continue
+            
+            result = t_func()
+            results.append(result)
+            if specific_task_type != "clock_in_makeup" and _is_clockin_rate_limited(result):
+                logger.warning("检测到工学云 IP/频繁请求限制，停止本轮后续工学云任务")
+                break
+
+    except Exception as e:
+        error_message = f"执行任务时发生严重错误: {str(e)}"
+        logger.error(error_message)
+        results.append(
+            {"status": "fail", "message": error_message, "task_type": "系统错误"}
+        )
+    finally:
+        if pusher:
+            try:
+                pusher.push(results)
+            except Exception as e:
+                logger.error(f"消息推送失败: {e}")
+
+        logger.info(
+            f"执行结束：{desensitize_name(config.get_value('userInfo.nikeName'))}"
+        )
+        _log_ctx.tag = "-"
+        
+    return results

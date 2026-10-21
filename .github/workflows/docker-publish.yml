@@ -1,0 +1,209 @@
+name: Docker Publish
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+      - master
+
+env:
+  GHCR_REGISTRY: ghcr.io
+
+jobs:
+  build:
+    name: Build and publish Docker image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      DOCKERHUB_REPOSITORY: ${{ secrets.DOCKERHUB_REPOSITORY }}
+      DATABASE_URL: mysql+pymysql://automoguding:automoguding123@127.0.0.1:3306/automoguding?charset=utf8mb4
+      APP_ENV: test
+      APP_SECRET: ci-secret-value-with-more-than-thirty-two-characters
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: ci-admin-password-123
+      RATE_LIMIT_BACKEND: memory
+      RETURN_AUTH_TOKEN: "false"
+      AUTH_COOKIE_SECURE: "false"
+      AI_ALLOWED_HOSTS: ""
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: automoguding
+          MYSQL_USER: automoguding
+          MYSQL_PASSWORD: automoguding123
+          MYSQL_ROOT_PASSWORD: root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Verify action pinning
+        run: python scripts/verify_supply_chain_policy.py
+
+      - name: Install backend dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r server/requirements.txt && python -m pip install pip-audit
+
+      - name: Audit Python dependencies
+        run: pip-audit -r server/requirements.txt
+
+      - name: Run database migrations
+        run: python -m alembic upgrade head
+
+      - name: Run backend tests
+        run: python -m unittest discover -s tests
+
+      - name: Compile backend
+        run: python -m compileall server
+
+      - name: Run quality gate
+        run: python scripts/quality_gate.py
+
+      - name: Run backup restore drill
+        run: python scripts/backup_restore_drill.py
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Audit frontend dependencies
+        working-directory: web
+        run: npm audit --audit-level=high
+
+      - name: Lint frontend
+        working-directory: web
+        run: npm run lint
+
+      - name: Test frontend
+        working-directory: web
+        run: npm test
+
+      - name: Build frontend
+        working-directory: web
+        run: npm run build
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Prepare image name
+        run: |
+          GHCR_IMAGE_NAME="${GITHUB_REPOSITORY,,}"
+          echo "GHCR_IMAGE_NAME=${GHCR_IMAGE_NAME}" >> "$GITHUB_ENV"
+          if [ -n "${DOCKERHUB_REPOSITORY}" ]; then
+            echo "DOCKERHUB_IMAGE_NAME=${DOCKERHUB_REPOSITORY}" >> "$GITHUB_ENV"
+          else
+            REPO_NAME="${GITHUB_REPOSITORY#*/}"
+            echo "DOCKERHUB_IMAGE_NAME=${DOCKERHUB_USERNAME}/${REPO_NAME,,}" >> "$GITHUB_ENV"
+          fi
+          echo "BUILD_DATE=$(TZ=Asia/Shanghai date +%Y%m%d)" >> "$GITHUB_ENV"
+          echo "BUILD_VERSION=$(TZ=Asia/Shanghai date +%Y%m%d-%H%M%S)" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request' && env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5
+        with:
+          images: |
+            name=${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}
+            name=${{ env.DOCKERHUB_IMAGE_NAME }},enable=${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=raw,value=${{ env.BUILD_DATE }},enable=${{ github.event_name != 'pull_request' }}
+            type=raw,value=${{ env.BUILD_VERSION }},enable=${{ github.event_name != 'pull_request' }}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          build-args: |
+            DOWNLOAD_MODELS=0
+            BUILD_DATE=${{ env.BUILD_DATE }}
+            BUILD_VERSION=${{ env.BUILD_VERSION }}
+            VCS_REF=${{ github.sha }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      - name: Sign GHCR image
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: cosign sign --yes "${GHCR_REGISTRY}/${GHCR_IMAGE_NAME}@${{ steps.build.outputs.digest }}"
+
+      - name: Verify GHCR image signature
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          cosign verify \
+            --certificate-identity-regexp "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/docker-publish.yml@refs/.*" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${GHCR_REGISTRY}/${GHCR_IMAGE_NAME}@${{ steps.build.outputs.digest }}"

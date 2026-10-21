@@ -1,0 +1,3866 @@
+{
+  "paths": {
+    "/api/admin-users": {
+      "post": {
+        "operation_id": "create_admin_user_api_admin_users_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AdminUserCreateRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/admin-users/page": {
+      "get": {
+        "operation_id": "read_admin_users_page_api_admin_users_page_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/AdminUserPageResponse"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/admin-users/{admin_user_id}": {
+      "patch": {
+        "operation_id": "update_admin_user_api_admin_users__admin_user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "admin_user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AdminUserUpdateRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/admin-users/{admin_user_id}/reset-password": {
+      "post": {
+        "operation_id": "reset_admin_user_password_api_admin_users__admin_user_id__reset_password_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "admin_user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AdminUserResetPasswordRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/ai/test": {
+      "post": {
+        "operation_id": "ai_test_api_ai_test_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AiTestRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/account-address": {
+      "get": {
+        "operation_id": "app_account_address_api_app_account_address_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/auth/login": {
+      "post": {
+        "operation_id": "app_login_api_app_auth_login_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AppLoginRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/auth/logout": {
+      "post": {
+        "operation_id": "app_logout_api_app_auth_logout_post",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/auth/register": {
+      "post": {
+        "operation_id": "app_register_api_app_auth_register_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AppRegisterRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/bind": {
+      "post": {
+        "operation_id": "app_bind_api_app_bind_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AppBindRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/clock-in/alipay/continue": {
+      "post": {
+        "operation_id": "app_continue_alipay_clockin_api_app_clock_in_alipay_continue_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AlipayClockInContinueRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/clock-in/makeup": {
+      "post": {
+        "operation_id": "app_clockin_makeup_api_app_clock_in_makeup_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/ClockInMakeupRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/clock-in/makeup-all": {
+      "post": {
+        "operation_id": "app_clockin_makeup_all_api_app_clock_in_makeup_all_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ClockInMakeupRequest"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/clock-in/missing-days": {
+      "get": {
+        "operation_id": "app_clockin_missing_days_api_app_clock_in_missing_days_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/clock-in/preauthorizations": {
+      "get": {
+        "operation_id": "app_clockin_preauthorizations_api_app_clock_in_preauthorizations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "refresh_plan",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/ClockInPreauthorizationListResponse"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/clock-in/preauthorizations/complete": {
+      "post": {
+        "operation_id": "app_complete_clockin_preauthorization_api_app_clock_in_preauthorizations_complete_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/ClockInPreauthorizationCompleteRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/ClockInPreauthorizationCompleteResponse"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/clock-in/preauthorizations/start": {
+      "post": {
+        "operation_id": "app_start_clockin_preauthorization_api_app_clock_in_preauthorizations_start_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/ClockInPreauthorizationStartRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/ClockInPreauthorizationStartResponse"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/execution": {
+      "get": {
+        "operation_id": "app_execution_api_app_execution_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/me": {
+      "get": {
+        "operation_id": "app_me_api_app_me_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      },
+      "patch": {
+        "operation_id": "app_update_me_api_app_me_patch",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AppMeUpdateRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/reports/daily/generate": {
+      "post": {
+        "operation_id": "app_generate_daily_report_api_app_reports_daily_generate_post",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/reports/daily/submit": {
+      "post": {
+        "operation_id": "app_submit_daily_report_api_app_reports_daily_submit_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AppReportSubmitRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/reports/{report_key}/generate": {
+      "post": {
+        "operation_id": "app_generate_report_api_app_reports__report_key__generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_period",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/reports/{report_key}/makeup-all": {
+      "post": {
+        "operation_id": "app_makeup_all_reports_api_app_reports__report_key__makeup_all_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/reports/{report_key}/missing-periods": {
+      "get": {
+        "operation_id": "app_report_missing_periods_api_app_reports__report_key__missing_periods_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/reports/{report_key}/submit": {
+      "post": {
+        "operation_id": "app_submit_report_api_app_reports__report_key__submit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AppReportSubmitRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/run": {
+      "post": {
+        "operation_id": "app_run_api_app_run_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AppRunRequest"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/task-status": {
+      "get": {
+        "operation_id": "get_app_task_status_api_app_task_status_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/verification-sessions/{session_id}": {
+      "get": {
+        "operation_id": "get_app_verification_session_api_app_verification_sessions__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/verification-sessions/{session_id}/check": {
+      "post": {
+        "operation_id": "check_app_verification_session_api_app_verification_sessions__session_id__check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/audit-logs": {
+      "delete": {
+        "operation_id": "clear_audit_logs_api_audit_logs_delete",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/audit-logs/page": {
+      "get": {
+        "operation_id": "read_audit_logs_page_api_audit_logs_page_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/AuditLogPageResponse"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operation_id": "admin_login_api_auth_login_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/LoginRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operation_id": "admin_logout_api_auth_logout_post",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operation_id": "admin_me_api_auth_me_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/batch-jobs/{job_id}": {
+      "get": {
+        "operation_id": "read_batch_job_api_batch_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/batch-jobs/{job_id}/cancel": {
+      "post": {
+        "operation_id": "cancel_batch_job_api_batch_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/batch-jobs/{job_id}/pause": {
+      "post": {
+        "operation_id": "pause_batch_job_api_batch_jobs__job_id__pause_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/batch-jobs/{job_id}/resume": {
+      "post": {
+        "operation_id": "resume_batch_job_api_batch_jobs__job_id__resume_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/batch-jobs/{job_id}/retry-failed": {
+      "post": {
+        "operation_id": "retry_failed_batch_job_items_api_batch_jobs__job_id__retry_failed_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/geocode/reverse": {
+      "get": {
+        "operation_id": "geocode_reverse_api_geocode_reverse_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/geocode/search": {
+      "get": {
+        "operation_id": "geocode_search_api_geocode_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/settings/ai": {
+      "get": {
+        "operation_id": "get_ai_settings_api_settings_ai_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      },
+      "patch": {
+        "operation_id": "update_ai_settings_api_settings_ai_patch",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AiSettingsUpdateRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/settings/ai/test": {
+      "post": {
+        "operation_id": "test_ai_settings_api_settings_ai_test_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AiSettingsTestRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/settings/notifications": {
+      "get": {
+        "operation_id": "get_notification_settings_api_settings_notifications_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      },
+      "patch": {
+        "operation_id": "update_notification_settings_api_settings_notifications_patch",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/NotificationSettingsUpdateRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/settings/notifications/smtp/test": {
+      "post": {
+        "operation_id": "test_notification_smtp_api_settings_notifications_smtp_test_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/NotificationSettingsTestRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/settings/proxy": {
+      "get": {
+        "operation_id": "get_proxy_settings_api_settings_proxy_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      },
+      "patch": {
+        "operation_id": "update_proxy_settings_api_settings_proxy_patch",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/ProxySettingsUpdateRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users": {
+      "get": {
+        "operation_id": "read_users_api_users_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "items": {
+                  "$ref": "#/components/schemas/UserRead"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      },
+      "post": {
+        "operation_id": "create_user_api_users_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/UserCreate"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/UserRead"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/page": {
+      "get": {
+        "operation_id": "read_users_page_api_users_page_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/UserPageResponse"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/run/batch": {
+      "post": {
+        "operation_id": "run_users_batch_api_users_run_batch_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/BatchRunRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}": {
+      "delete": {
+        "operation_id": "delete_user_api_users__user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      },
+      "get": {
+        "operation_id": "read_user_api_users__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/UserRead"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      },
+      "patch": {
+        "operation_id": "update_user_api_users__user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/UserUpdate"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/UserRead"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/account-address": {
+      "get": {
+        "operation_id": "read_user_account_address_api_users__user_id__account_address_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/clock-in/alipay/continue": {
+      "post": {
+        "operation_id": "continue_user_alipay_clockin_api_users__user_id__clock_in_alipay_continue_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/AlipayClockInContinueRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/clock-in/makeup": {
+      "post": {
+        "operation_id": "makeup_user_clockin_api_users__user_id__clock_in_makeup_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/ClockInMakeupRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/clock-in/makeup-all": {
+      "post": {
+        "operation_id": "makeup_all_user_clockin_api_users__user_id__clock_in_makeup_all_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ClockInMakeupRequest"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/clock-in/missing-days": {
+      "get": {
+        "operation_id": "read_user_clockin_missing_days_api_users__user_id__clock_in_missing_days_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/clock-in/preauthorizations": {
+      "get": {
+        "operation_id": "read_user_clockin_preauthorizations_api_users__user_id__clock_in_preauthorizations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "refresh_plan",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/ClockInPreauthorizationListResponse"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/clock-in/preauthorizations/complete": {
+      "post": {
+        "operation_id": "complete_user_clockin_preauthorization_api_users__user_id__clock_in_preauthorizations_complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/ClockInPreauthorizationCompleteRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/ClockInPreauthorizationCompleteResponse"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/clock-in/preauthorizations/start": {
+      "post": {
+        "operation_id": "start_user_clockin_preauthorization_api_users__user_id__clock_in_preauthorizations_start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/ClockInPreauthorizationStartRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/ClockInPreauthorizationStartResponse"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/execution": {
+      "get": {
+        "operation_id": "read_user_execution_api_users__user_id__execution_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/job-info": {
+      "get": {
+        "operation_id": "read_user_job_info_api_users__user_id__job_info_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/reports/daily/generate": {
+      "post": {
+        "operation_id": "generate_daily_report_api_users__user_id__reports_daily_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/reports/daily/submit": {
+      "post": {
+        "operation_id": "submit_daily_report_manual_api_users__user_id__reports_daily_submit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/ReportSubmitRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/reports/{report_key}/generate": {
+      "post": {
+        "operation_id": "generate_report_api_users__user_id__reports__report_key__generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_period",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/reports/{report_key}/makeup-all": {
+      "post": {
+        "operation_id": "makeup_all_reports_manual_api_users__user_id__reports__report_key__makeup_all_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/reports/{report_key}/missing-periods": {
+      "get": {
+        "operation_id": "report_missing_periods_api_users__user_id__reports__report_key__missing_periods_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/reports/{report_key}/submit": {
+      "post": {
+        "operation_id": "submit_report_manual_api_users__user_id__reports__report_key__submit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/ReportSubmitRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/run": {
+      "post": {
+        "operation_id": "run_user_task_api_users__user_id__run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AppRunRequest"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/task-status": {
+      "get": {
+        "operation_id": "get_user_task_status_api_users__user_id__task_status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/verification-sessions/{session_id}": {
+      "get": {
+        "operation_id": "get_admin_verification_session_api_users__user_id__verification_sessions__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/verification-sessions/{session_id}/check": {
+      "post": {
+        "operation_id": "check_admin_verification_session_api_users__user_id__verification_sessions__session_id__check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operation_id": "healthz_healthz_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operation_id": "metrics_metrics_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/metrics.prom": {
+      "get": {
+        "operation_id": "metrics_prometheus_metrics_prom_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operation_id": "readyz_readyz_get",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    }
+  },
+  "schemas": {
+    "AdminUserCreateRequest": {
+      "properties": {
+        "password": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "password",
+        "username"
+      ],
+      "type": "object"
+    },
+    "AdminUserPageResponse": {
+      "properties": {
+        "items": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "page": {
+          "type": "integer"
+        },
+        "pageSize": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "page",
+        "pageSize",
+        "total"
+      ],
+      "type": "object"
+    },
+    "AdminUserResetPasswordRequest": {
+      "properties": {
+        "password": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "password"
+      ],
+      "type": "object"
+    },
+    "AdminUserUpdateRequest": {
+      "properties": {
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "AiSettingsTestRequest": {
+      "properties": {
+        "ai": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "AiSettingsUpdateRequest": {
+      "properties": {
+        "ai": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "ai"
+      ],
+      "type": "object"
+    },
+    "AiTestRequest": {
+      "properties": {
+        "apiUrl": {
+          "type": "string"
+        },
+        "apikey": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiUrl",
+        "apikey",
+        "model"
+      ],
+      "type": "object"
+    },
+    "AlipayClockInContinueRequest": {
+      "properties": {
+        "attendance_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "out_register_no": {
+          "type": "string"
+        },
+        "target_type": {
+          "type": "string"
+        },
+        "verification_type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "AppBindRequest": {
+      "properties": {
+        "task_password": {
+          "type": "string"
+        },
+        "task_phone": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_password",
+        "task_phone"
+      ],
+      "type": "object"
+    },
+    "AppLoginRequest": {
+      "properties": {
+        "password": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "password",
+        "phone"
+      ],
+      "type": "object"
+    },
+    "AppMeUpdateRequest": {
+      "properties": {
+        "clockIn": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enable_clockin": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "password": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pushNotifications": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reportSettings": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "AppRegisterRequest": {
+      "properties": {
+        "password": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "password",
+        "phone"
+      ],
+      "type": "object"
+    },
+    "AppReportSubmitRequest": {
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "target_period": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "type": "object"
+    },
+    "AppRunRequest": {
+      "properties": {
+        "force_report": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_period": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "task_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "AuditLogPageResponse": {
+      "properties": {
+        "items": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "page": {
+          "type": "integer"
+        },
+        "pageSize": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "page",
+        "pageSize",
+        "total"
+      ],
+      "type": "object"
+    },
+    "BatchRunRequest": {
+      "properties": {
+        "concurrency": {
+          "type": "integer"
+        },
+        "ids": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "ids"
+      ],
+      "type": "object"
+    },
+    "ClockInMakeupRequest": {
+      "properties": {
+        "target_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_dates": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ClockInPreauthorizationCompleteRequest": {
+      "properties": {
+        "registration_ticket": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "registration_tickets": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "ClockInPreauthorizationCompleteResponse": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "item": {
+          "$ref": "#/components/schemas/ClockInPreauthorizationItemResponse"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/ClockInPreauthorizationItemResponse"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "item"
+      ],
+      "type": "object"
+    },
+    "ClockInPreauthorizationItemResponse": {
+      "properties": {
+        "authorized_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "can_authorize": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "consumed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "target_date": {
+          "type": "string"
+        },
+        "target_time": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_type": {
+          "type": "string"
+        },
+        "used_target_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "target_date",
+        "target_type"
+      ],
+      "type": "object"
+    },
+    "ClockInPreauthorizationListResponse": {
+      "properties": {
+        "account": {
+          "type": "string"
+        },
+        "added_date": {
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/ClockInPreauthorizationItemResponse"
+          },
+          "type": "array"
+        },
+        "page": {
+          "type": "integer"
+        },
+        "page_size": {
+          "type": "integer"
+        },
+        "plan_end_date": {
+          "type": "string"
+        },
+        "schedule": {
+          "type": "object"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "object"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "account",
+        "added_date",
+        "items",
+        "page",
+        "page_size",
+        "plan_end_date",
+        "schedule",
+        "scope",
+        "summary",
+        "total"
+      ],
+      "type": "object"
+    },
+    "ClockInPreauthorizationStartRequest": {
+      "properties": {
+        "scope": {
+          "type": "string"
+        },
+        "target_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ClockInPreauthorizationStartResponse": {
+      "properties": {
+        "browser_url": {
+          "type": "string"
+        },
+        "direct_url": {
+          "type": "string"
+        },
+        "expires_at": {
+          "type": "string"
+        },
+        "registration_ticket": {
+          "type": "string"
+        },
+        "registration_tickets": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "started_at": {
+          "type": "string"
+        },
+        "target_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "browser_url",
+        "direct_url",
+        "expires_at",
+        "registration_ticket",
+        "started_at"
+      ],
+      "type": "object"
+    },
+    "HTTPValidationError": {
+      "properties": {
+        "detail": {
+          "items": {
+            "$ref": "#/components/schemas/ValidationError"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "LoginRequest": {
+      "properties": {
+        "password": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "password",
+        "username"
+      ],
+      "type": "object"
+    },
+    "NotificationSettingsTestRequest": {
+      "properties": {
+        "smtp": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "smtp"
+      ],
+      "type": "object"
+    },
+    "NotificationSettingsUpdateRequest": {
+      "properties": {
+        "smtp": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "smtp"
+      ],
+      "type": "object"
+    },
+    "ProxySettingsUpdateRequest": {
+      "properties": {
+        "proxy": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "proxy"
+      ],
+      "type": "object"
+    },
+    "ReportSubmitRequest": {
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "target_period": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "type": "object"
+    },
+    "UserCreate": {
+      "properties": {
+        "app_enabled": {
+          "type": "boolean"
+        },
+        "app_password_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clockIn": {
+          "type": "object"
+        },
+        "device": {
+          "type": "string"
+        },
+        "enable_clockin": {
+          "type": "boolean"
+        },
+        "password": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "pushNotifications": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "remark": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reportSettings": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "password",
+        "phone"
+      ],
+      "type": "object"
+    },
+    "UserListRead": {
+      "properties": {
+        "deleted_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enable_clockin": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "last_run_time": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "logs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "remark": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "enable_clockin",
+        "id",
+        "last_run_time",
+        "last_status",
+        "phone"
+      ],
+      "type": "object"
+    },
+    "UserPageResponse": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/UserListRead"
+          },
+          "type": "array"
+        },
+        "page": {
+          "type": "integer"
+        },
+        "pageSize": {
+          "type": "integer"
+        },
+        "q": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "page",
+        "pageSize",
+        "total"
+      ],
+      "type": "object"
+    },
+    "UserRead": {
+      "properties": {
+        "app_enabled": {
+          "type": "boolean"
+        },
+        "app_password_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clockIn": {
+          "type": "object"
+        },
+        "deleted_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "device": {
+          "type": "string"
+        },
+        "enable_clockin": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "last_execution_result": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "last_run_time": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "logs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "password": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "pushNotifications": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "remark": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reportSettings": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "last_execution_result",
+        "last_run_time",
+        "last_status",
+        "logs",
+        "password",
+        "phone"
+      ],
+      "type": "object"
+    },
+    "UserUpdate": {
+      "properties": {
+        "app_enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "app_password_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clockIn": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "device": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enable_clockin": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "password": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pushNotifications": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "remark": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reportSettings": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ValidationError": {
+      "properties": {
+        "ctx": {
+          "type": "object"
+        },
+        "input": {},
+        "loc": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "msg": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "loc",
+        "msg",
+        "type"
+      ],
+      "type": "object"
+    }
+  },
+  "title": "AutoMoGuDing SaaS",
+  "version": 1
+}
