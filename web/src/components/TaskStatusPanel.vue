@@ -15,15 +15,20 @@
       <p v-for="check in state.monitor?.checks || []" :key="check.target_type">{{ check.target_type === 'START' ? '上班' : '下班' }}：{{ check.record_confirmed ? '服务端记录已确认' : check.confirmation_state === 'missing' ? '未查到记录，已进入提醒流程' : '查询不可用，不能判断是否漏卡' }}
         <span v-if="check.incident_id && check.record_confirmed"> · 异常已恢复，通知：{{ mailLabel(check.notification_state || 'queued') }}</span>
       </p>
-      <h4>本次授权事务（可在刷新页面后继续检查）</h4>
+      <div class="verification-heading">
+        <h4>本次授权事务（可在刷新页面后继续检查）</h4>
+        <el-button type="danger" plain :loading="clearing" :disabled="loading || busyId !== null || !state.verification_sessions?.length" @click="clearVerificationSessions">清空授权事务</el-button>
+      </div>
       <p v-if="!state.verification_sessions?.length">暂无待处理授权；只有签到实际触发验证时才会创建事务。</p>
       <div v-for="item in state.verification_sessions || []" :key="item.id" class="verification-item">
         <p>{{ item.attendance_date }} · {{ item.target_type === 'START' ? '上班' : '下班' }} · {{ verificationLabel(item.state) }}</p>
         <p v-if="item.server_time">服务端记录：{{ item.server_time }}</p>
         <p v-if="item.last_checked">上次检查：{{ formatEpoch(item.last_checked) }}；两次检查至少间隔 15 秒。</p>
         <p v-if="['verification_query_failed', 'record_query_failed'].includes(item.check_state)">官方查询暂不可用，仍是待确认，不代表签到失败或验证通过。</p>
+        <p v-if="item.state !== 'record_confirmed'">{{ resumeLabel(item.resume_state) }}</p>
         <el-button v-if="['awaiting_verification', 'verified_pending_record'].includes(item.state)" :loading="busyId === item.id" @click="openVerification(item)">查看授权二维码和链接</el-button>
         <el-button v-if="item.state !== 'record_confirmed'" :loading="busyId === item.id" @click="checkVerification(item)">我已完成授权，仅检查记录</el-button>
+        <el-button v-if="item.resume_available" type="primary" :disabled="busyId !== null" @click="resumeVerification(item)">授权完成，续提一次</el-button>
       </div>
       <el-dialog v-model="authorizationVisible" title="本次签到授权" width="min(92vw, 520px)" append-to-body @closed="authorization = null">
         <template v-if="authorization">
@@ -52,6 +57,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { http } from '../api/http'
 import { userHttp } from '../api/userHttp'
 const props = defineProps({ userId: { type: Number, default: null }, self: Boolean })
@@ -60,6 +66,7 @@ const state = ref(null)
 const error = ref('')
 const loading = ref(false)
 const busyId = ref(null)
+const clearing = ref(false)
 const authorization = ref(null)
 const authorizationVisible = ref(false)
 let timer
@@ -68,15 +75,41 @@ const formatTime = value => value ? new Date(value).toLocaleString('zh-CN', { ti
 const formatEpoch = value => value ? formatTime(new Date(value * 1000).toISOString()) : '-'
 const mailLabel = value => ({ sent: '通道已接受', accepted: '微信渠道已受理（未确认送达）', provider_sent: '微信渠道已发送（非已读回执）', retry: '等待重试', queued: '已入队', sending: '发送中', failed: '发送失败', uncertain: '投递结果未知，请查收', expired: '已过期', cancelled: '旧提醒已取消', pending_enqueue: '等待入队', enqueue_failed: '入队失败，稍后再试', disabled: '未启用通知' }[value] || value)
 const verificationLabel = value => ({ awaiting_verification: '等待本人验证', verified_pending_record: '验证已确认，等待考勤记录', record_confirmed: '考勤记录已确认', expired: '授权链接已过期，可检查记录', superseded: '已由新事务替代' }[value] || value)
+const resumeLabel = value => ({ ready: '已保存原请求；完成本人授权后可明确选择续提一次。', context_missing: '旧事务未保存首次请求，不能安全续提；请在官方 App 确认考勤。', response_context_missing: '首次请求或官方验证响应无法识别，已加密保留上下文，不盲目重放。', uncertain: '续提已开始，结果未知；只回查，不会再次发送。', responded: '续提已响应，是否签到成功以服务端考勤记录为准。', rejected: '续提被拒绝，请在官方 App 检查；不会自动重试。', verification_required_again: '续提仍需验证，已停止；不会循环创建二维码或重放请求。' }[value] || '')
 const client = () => props.self ? userHttp : http
 const sessionPath = id => props.self ? `/app/verification-sessions/${id}` : `/users/${props.userId}/verification-sessions/${id}`
+const clearVerificationSessions = async () => {
+  if (clearing.value || loading.value || busyId.value !== null || !state.value?.verification_sessions?.length) return
+  const userId = props.userId
+  clearing.value = true
+  try {
+    await ElMessageBox.confirm('仅清理当前账号的本地授权事务及其待发送提醒，不删除考勤记录，也不会重新签到。清理后无法从这里继续检查这些事务，确定清空？', '清空授权事务', {
+      confirmButtonText: '确定清空', cancelButtonText: '取消', type: 'warning'
+    })
+    if (disposed || props.userId !== userId) return
+    const response = await client().delete(props.self ? '/app/verification-sessions' : `/users/${userId}/verification-sessions`)
+    if (disposed || props.userId !== userId) return
+    authorizationVisible.value = false
+    authorization.value = null
+    state.value = { ...state.value, verification_sessions: [] }
+    error.value = ''
+    emit('status', state.value)
+    ElMessage.success(`已清理 ${response.data.cleared} 条授权事务`)
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close' && !disposed && props.userId === userId) error.value = e.response?.data?.detail || '清理失败，请稍后重试'
+  } finally { clearing.value = false }
+}
 const openVerification = async item => {
+  if (clearing.value) return
+  if (busyId.value !== null) return
   busyId.value = item.id
   try { authorization.value = (await client().get(sessionPath(item.id))).data; authorizationVisible.value = true; error.value = '' }
   catch (e) { error.value = e.response?.data?.detail || '授权链接加载失败，请先检查记录' }
   finally { busyId.value = null }
 }
 const checkVerification = async item => {
+  if (busyId.value !== null) return
+  if (clearing.value) return
   busyId.value = item.id
   try {
     const data = (await client().post(`${sessionPath(item.id)}/check`)).data
@@ -86,12 +119,32 @@ const checkVerification = async item => {
   } catch (e) { error.value = e.response?.data?.detail || '本次授权尚无法确认' }
   finally { busyId.value = null }
 }
+const resumeVerification = async item => {
+  if (clearing.value) return
+  if (busyId.value !== null || !item.resume_available) return
+  busyId.value = item.id
+  try {
+    await ElMessageBox.confirm('这会在回查无记录且官方确认验证有效后，携带首次请求上下文续提一次。超时或响应不确定时不重复发送。确认已在支付宝完成本次授权？', '续提本次签到', { type: 'warning', confirmButtonText: '续提一次', cancelButtonText: '取消' })
+    const data = (await client().post(`${sessionPath(item.id)}/resume`)).data
+    if (data.record_confirmed) ElMessage.success('服务端考勤记录已确认')
+    else ElMessage.info(resumeLabel(data.resume_state) || '考勤待确认，请只检查记录')
+    authorizationVisible.value = false
+    authorization.value = null
+    await load()
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') {
+      // A failed HTTP response does not mean the upstream write was not sent.
+      await load()
+      error.value = e.response?.data?.detail || '续提响应未确认，请刷新后只检查记录，不要重新签到'
+    }
+  } finally { busyId.value = null }
+}
 const copyAuthorization = async () => {
   try { await navigator.clipboard.writeText(authorization.value?.direct_url || '') }
   catch { error.value = '复制失败，请选中链接手动复制' }
 }
 const load = async () => {
-  if (loading.value || (!props.self && !props.userId)) return
+  if (loading.value || clearing.value || (!props.self && !props.userId)) return
   loading.value = true
   try {
     const response = await (props.self ? userHttp : http).get(props.self ? '/app/task-status' : `/users/${props.userId}/task-status`)
@@ -116,6 +169,8 @@ onUnmounted(() => { disposed = true; clearInterval(timer) })
 <style scoped>
 .task-status { margin-bottom: 18px; }
 .status-heading { display: flex; justify-content: space-between; align-items: center; }
+.verification-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 18px 0; }
+.verification-heading h4 { margin: 0; }
 p { overflow-wrap: anywhere; }
 small { color: var(--el-text-color-secondary); }
 </style>

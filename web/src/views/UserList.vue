@@ -635,6 +635,15 @@ const continueClockIn = async () => {
       await fetchUsers()
       return
     }
+    if (result?.status === 'pending') {
+      if (result.details?.verification_confirmed) {
+        verificationVisible.value = false
+        verification.value = null
+      }
+      notifyInfo(result.message || '考勤记录待服务端确认')
+      await load()
+      return
+    }
     notifyError(result?.message || '继续打卡失败')
   } catch (error) {
     notifyError(resolveErrorMessage(error, '继续打卡失败'))

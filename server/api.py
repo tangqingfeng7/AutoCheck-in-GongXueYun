@@ -93,6 +93,26 @@ require_batch_read = require_permission("batch:read")
 require_batch_manage = require_permission("batch:manage")
 
 
+@router.delete("/users/{user_id}/verification-sessions")
+def clear_admin_verification_sessions(user_id: int, response: Response,
+                                      session: Session = Depends(get_session),
+                                      operator: dict = Depends(require_tasks_run)):
+    from server.verification_sessions import clear_sessions
+    user = _get_active_user_for_payload(session, user_id, operator)
+    response.headers["Cache-Control"] = "no-store"
+    return clear_sessions(session, user)
+
+
+@router.delete("/app/verification-sessions")
+def clear_app_verification_sessions(response: Response, session: Session = Depends(get_session),
+                                    payload: dict = Depends(get_user)):
+    from server.verification_sessions import clear_sessions
+    app_user = _get_authed_app_user(session=session, payload=payload)
+    user = _get_bound_task_user(session=session, app_user=app_user)
+    response.headers["Cache-Control"] = "no-store"
+    return clear_sessions(session, user)
+
+
 @router.get("/users/{user_id}/verification-sessions/{session_id}")
 def get_admin_verification_session(user_id: int, session_id: str, response: Response,
                                     session: Session = Depends(get_session),
@@ -122,6 +142,28 @@ def get_app_verification_session(session_id: str, response: Response,
     user = _get_bound_task_user(session=session, app_user=app_user)
     response.headers["Cache-Control"] = "no-store"
     return session_links(user, session_id)
+
+
+@router.post("/users/{user_id}/verification-sessions/{session_id}/resume")
+def resume_admin_verification_session(user_id: int, session_id: str, response: Response,
+                                     session: Session = Depends(get_session),
+                                     operator: dict = Depends(require_tasks_run)):
+    from server.verification_sessions import resume_session
+    user = _get_active_user_for_payload(session, user_id, operator)
+    _rate_limit(f"verification_resume:{user.tenant_id}:{user.id}", limit=4, per_seconds=60)
+    response.headers["Cache-Control"] = "no-store"
+    return resume_session(user, session_id)
+
+
+@router.post("/app/verification-sessions/{session_id}/resume")
+def resume_app_verification_session(session_id: str, response: Response,
+                                   session: Session = Depends(get_session), payload: dict = Depends(get_user)):
+    from server.verification_sessions import resume_session
+    app_user = _get_authed_app_user(session=session, payload=payload)
+    user = _get_bound_task_user(session=session, app_user=app_user)
+    _rate_limit(f"verification_resume:{user.tenant_id}:{user.id}", limit=4, per_seconds=60)
+    response.headers["Cache-Control"] = "no-store"
+    return resume_session(user, session_id)
 
 
 @router.post("/app/verification-sessions/{session_id}/check")
@@ -1152,8 +1194,9 @@ def _continue_alipay_clockin_for_user(
     # 塞回 save 接口重放打卡。queryAxdj 成功后刷新考勤列表确认服务端落账。
     verification_confirmed = False
     if verification_type == "account":
+        from server.attendance_confirmation import verification_query_succeeded
         verification_response = api_client.query_alipay_clockin_verification(out_register_no)
-        verification_confirmed = isinstance(verification_response, dict) and verification_response.get("data") is True
+        verification_confirmed = verification_query_succeeded(verification_response)
     record_date = attendance_date or datetime.datetime.now(BEIJING_TZ).date().isoformat()
     matched = None
     record_read_failed = False
@@ -1179,7 +1222,8 @@ def _continue_alipay_clockin_for_user(
     if matched is None:
         result = {
             "status": "pending",
-            "message": "授权状态或服务端考勤记录仍待确认，请稍后刷新；不会重复提交签到",
+            "message": ("授权回查已成功，服务端尚未查到考勤记录；不会自动重复提交签到"
+                        if verification_confirmed else "授权状态或服务端考勤记录仍待确认，请稍后刷新；不会重复提交签到"),
             "task_type": "打卡",
             "details": {
                 "target_type": target_type,

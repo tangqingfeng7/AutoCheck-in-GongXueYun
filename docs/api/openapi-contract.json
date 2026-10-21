@@ -899,6 +899,24 @@
         "tags": []
       }
     },
+    "/api/app/verification-sessions": {
+      "delete": {
+        "operation_id": "clear_app_verification_sessions_api_app_verification_sessions_delete",
+        "parameters": [],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          }
+        },
+        "tags": []
+      }
+    },
     "/api/app/verification-sessions/{session_id}": {
       "get": {
         "operation_id": "get_app_verification_session_api_app_verification_sessions__session_id__get",
@@ -936,6 +954,40 @@
     "/api/app/verification-sessions/{session_id}/check": {
       "post": {
         "operation_id": "check_app_verification_session_api_app_verification_sessions__session_id__check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/app/verification-sessions/{session_id}/resume": {
+      "post": {
+        "operation_id": "resume_app_verification_session_api_app_verification_sessions__session_id__resume_post",
         "parameters": [
           {
             "in": "path",
@@ -2649,6 +2701,40 @@
         "tags": []
       }
     },
+    "/api/users/{user_id}/verification-sessions": {
+      "delete": {
+        "operation_id": "clear_admin_verification_sessions_api_users__user_id__verification_sessions_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
     "/api/users/{user_id}/verification-sessions/{session_id}": {
       "get": {
         "operation_id": "get_admin_verification_session_api_users__user_id__verification_sessions__session_id__get",
@@ -2694,6 +2780,48 @@
     "/api/users/{user_id}/verification-sessions/{session_id}/check": {
       "post": {
         "operation_id": "check_admin_verification_session_api_users__user_id__verification_sessions__session_id__check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "request_body": {
+          "content": {},
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/users/{user_id}/verification-sessions/{session_id}/resume": {
+      "post": {
+        "operation_id": "resume_admin_verification_session_api_users__user_id__verification_sessions__session_id__resume_post",
         "parameters": [
           {
             "in": "path",

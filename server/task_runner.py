@@ -467,7 +467,9 @@ def perform_clock_in(
                 from server.verification_sessions import create_session
                 details["verification_session_id"] = create_session(
                     preauthorization_hooks.user_id, preauthorization_hooks.tenant_id,
-                    record_date, checkin_type, details, db_engine=preauthorization_hooks.db_engine)
+                    record_date, checkin_type, details, db_engine=preauthorization_hooks.db_engine,
+                    submission_context=(getattr(api_client, "_pending_submission", None)
+                                        if isinstance(getattr(api_client, "_pending_submission", None), dict) else None))
             return {
                 "status": "fail",
                 "message": message,

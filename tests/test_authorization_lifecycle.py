@@ -160,7 +160,9 @@ class VerificationSessionTest(DatabaseCase):
             self.assertEqual(s.get(User,1).last_run_time,'2026-10-21 08:30:00')
             self.assertEqual(get_setting(s,verification.PREFIX+sid).value['payload'],'')
         client.submit_clock_in.assert_not_called();client.login.assert_not_called()
-        client.query_alipay_clockin_verification.assert_called_once()
+        # A cached query acknowledgment must not disable checks before the
+        # attendance record is confirmed (authorization may finish later).
+        self.assertEqual(client.query_alipay_clockin_verification.call_count, 2)
 
     def test_http_success_false_data_is_not_verified(self):
         sid=self.session_id();client=Mock()

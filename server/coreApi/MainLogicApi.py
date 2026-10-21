@@ -9,6 +9,7 @@ import threading
 import datetime
 import ipaddress
 import socket
+from copy import deepcopy
 from typing import Dict, Any, List, Optional
 from urllib.parse import parse_qs, quote, urlparse, urlunparse
 
@@ -1015,6 +1016,7 @@ class ApiClient:
         replace: bool = False,
     ) -> Dict[str, str]:
         """提交普通打卡或补卡请求。"""
+        self._pending_submission = None
         url = "attendence/clock/teacher/v2/save"
         planId = self.config.get_value("planInfo.planId")
         sign_data = self._clock_in_sign_data(checkin_info, planId)
@@ -1103,19 +1105,67 @@ class ApiClient:
         if response.get("msg") == "304":
             result: Dict[str, str] = {"status": "verification_required"}
             response_data = response.get("data")
+            # Some versions wrap the object as JSON text. Opaque strings are
+            # retained privately for diagnosis, never guessed to be an ID.
+            if isinstance(response_data, str) and len(response_data) <= 16384:
+                try:
+                    response_data = json.loads(response_data)
+                except (ValueError, TypeError):
+                    response_data = None
             if isinstance(response_data, dict):
-                attendance_id = str(response_data.get("attendanceId") or "").strip()
-                if attendance_id:
+                raw_id = response_data.get("attendanceId")
+                attendance_id = str(raw_id).strip() if type(raw_id) in (str, int) else ""
+                if attendance_id and len(attendance_id) <= 256 and not any(ch.isspace() for ch in attendance_id):
                     result["attendanceId"] = attendance_id
                 create_time = str(response_data.get("createTime") or "").strip()
                 if create_time:
                     result["createTime"] = create_time
+            if not replace and url == "attendence/clock/v6/save":
+                self._pending_submission = {
+                    "version": 1, "path": url, "body": deepcopy(data),
+                    "attendanceId": result.get("attendanceId"),
+                    "response_data": response.get("data"),
+                }
             return result
         if response.get("code") != 200:
             raise ValueError(str(response.get("msg") or "打卡失败"))
         # 官方 APK 只对 302/303/304 做特殊分流；其余 code=200 进入成功分支。
         # 不额外限定 msg 文案，避免服务端中文成功提示被误判为失败。
         return {"status": "success"}
+
+    def validate_clock_in_continuation(self, snapshot, registration, day, kind):
+        """Fail closed unless this is the captured, same-day official transaction."""
+        from server.attendance_confirmation import continuation_context_supported
+        if not isinstance(snapshot, dict) or snapshot.get("version") != 1:
+            raise ValueError("缺少首次签到请求，不能安全续提")
+        if snapshot.get("path") != "attendence/clock/v6/save" or kind not in {"START", "END"}:
+            raise ValueError("此签到类型不支持续提")
+        data = snapshot.get("body")
+        if not continuation_context_supported(snapshot):
+            raise ValueError("首次请求或官方验证响应无法识别，不能安全续提")
+        today = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).date().isoformat()
+        if day != today or str(data.get("createTime") or "")[:10] != day or data.get("type") != kind:
+            raise ValueError("首次签到日期或类型不匹配，不能续提")
+        for field, key in (("userId", "userInfo.userId"), ("planId", "planInfo.planId"), ("device", "config.device")):
+            expected = self.config.get_value(key)
+            if not expected or data.get(field) != expected:
+                raise ValueError("账号、计划或设备已变化，不能续提旧事务")
+        if not data.get("appUuid") or not data.get("address") or not re.fullmatch(r"[A-Za-z0-9-]{1,128}", str(registration or "")):
+            raise ValueError("首次签到上下文不完整")
+
+    def resume_clock_in_submission(self, snapshot, registration, day, kind):
+        """One explicit continuation. No captcha/challenge loop or new identity."""
+        self.validate_clock_in_continuation(snapshot, registration, day, kind)
+        data = deepcopy(snapshot["body"])
+        data.update(outRegisterNo=registration, t=aes_encrypt(str(int(time.time() * 1000))))
+        if snapshot.get("attendanceId"):
+            data["attendanceId"] = snapshot["attendanceId"]
+        headers = self._get_authenticated_headers([
+            data["device"], data["type"], data["planId"], data["userId"], data.get("address")])
+        response = self._post_request(snapshot["path"], headers, data)
+        if response.get("msg") in {"302", "303", "304"}:
+            return "verification_required_again"
+        return "responded" if response.get("code") == 200 else "rejected"
 
     def submit_clock_in(self, checkin_info: Dict[str, Any]) -> Dict[str, str]:
         """提交打卡信息"""
