@@ -1474,6 +1474,64 @@
         "tags": []
       }
     },
+    "/api/settings/notifications/pushplus": {
+      "patch": {
+        "operation_id": "update_notification_pushplus_api_settings_notifications_pushplus_patch",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/PushPlusSettingsRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
+    "/api/settings/notifications/pushplus/test": {
+      "post": {
+        "operation_id": "test_notification_pushplus_api_settings_notifications_pushplus_test_post",
+        "parameters": [],
+        "request_body": {
+          "content": {
+            "application/json": {
+              "$ref": "#/components/schemas/PushPlusSettingsRequest"
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        },
+        "tags": []
+      }
+    },
     "/api/settings/notifications/smtp/test": {
       "post": {
         "operation_id": "test_notification_smtp_api_settings_notifications_smtp_test_post",
@@ -3141,22 +3199,12 @@
     "ClockInPreauthorizationCompleteRequest": {
       "properties": {
         "registration_ticket": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "registration_tickets": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+          "type": "string"
         }
       },
+      "required": [
+        "registration_ticket"
+      ],
       "type": "object"
     },
     "ClockInPreauthorizationCompleteResponse": {
@@ -3350,17 +3398,8 @@
         "registration_ticket": {
           "type": "string"
         },
-        "registration_tickets": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "started_at": {
           "type": "string"
-        },
-        "target_count": {
-          "type": "integer"
         }
       },
       "required": [
@@ -3428,6 +3467,17 @@
       },
       "required": [
         "proxy"
+      ],
+      "type": "object"
+    },
+    "PushPlusSettingsRequest": {
+      "properties": {
+        "pushplus": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "pushplus"
       ],
       "type": "object"
     },

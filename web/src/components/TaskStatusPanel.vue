@@ -66,7 +66,7 @@ let timer
 let disposed = false
 const formatTime = value => value ? new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }) : '无已加载任务'
 const formatEpoch = value => value ? formatTime(new Date(value * 1000).toISOString()) : '-'
-const mailLabel = value => ({ sent: 'SMTP 已接受', retry: '等待重试', queued: '已入队', sending: '发送中', failed: '发送失败', uncertain: '投递结果未知，请查收', expired: '已过期', cancelled: '旧提醒已取消', pending_enqueue: '等待入队', enqueue_failed: '入队失败，稍后再试', disabled: '未启用邮件通知' }[value] || value)
+const mailLabel = value => ({ sent: '通道已接受', accepted: '微信渠道已受理（未确认送达）', provider_sent: '微信渠道已发送（非已读回执）', retry: '等待重试', queued: '已入队', sending: '发送中', failed: '发送失败', uncertain: '投递结果未知，请查收', expired: '已过期', cancelled: '旧提醒已取消', pending_enqueue: '等待入队', enqueue_failed: '入队失败，稍后再试', disabled: '未启用通知' }[value] || value)
 const verificationLabel = value => ({ awaiting_verification: '等待本人验证', verified_pending_record: '验证已确认，等待考勤记录', record_confirmed: '考勤记录已确认', expired: '授权链接已过期，可检查记录', superseded: '已由新事务替代' }[value] || value)
 const client = () => props.self ? userHttp : http
 const sessionPath = id => props.self ? `/app/verification-sessions/${id}` : `/users/${props.userId}/verification-sessions/${id}`

@@ -84,21 +84,20 @@ class ClockInPreauthorizationApiTest(unittest.TestCase):
 
         api_client.create_alipay_clockin_verification.assert_not_called()
 
-    def test_bulk_complete_deduplicates_first_ticket_and_completes_all(self):
-        req = api.ClockInPreauthorizationCompleteRequest(
-            registration_ticket="ticket-start",
-            registration_tickets=["ticket-start", "ticket-end"],
-        )
-        user = build_user()
-        with patch.object(
-            api,
-            "_complete_clockin_preauthorization_for_user",
-            side_effect=[{"target_type": "START"}, {"target_type": "END"}],
-        ) as complete:
-            result = api._complete_clockin_preauthorizations_for_user(Mock(), user, req)
+    def test_bulk_completion_payload_is_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
+            api.ClockInPreauthorizationCompleteRequest(
+                registration_ticket="ticket-start", registration_tickets=["ticket-start", "ticket-end"])
+        self.assertFalse(hasattr(api, "_bulk_preauthorization_targets"))
+        self.assertFalse(hasattr(api, "_legacy_start_clockin_preauthorization_for_user"))
 
-        self.assertEqual([item["target_type"] for item in result], ["START", "END"])
-        self.assertEqual(complete.call_count, 2)
+    def test_single_completion_preserved(self):
+        req = api.ClockInPreauthorizationCompleteRequest(registration_ticket="ticket-start")
+        with patch.object(api, "_complete_clockin_preauthorization_for_user", return_value={"target_type": "START"}) as complete:
+            result = api._complete_clockin_preauthorizations_for_user(Mock(), build_user(), req)
+        self.assertEqual(result, [{"target_type": "START"}])
+        complete.assert_called_once()
 
     def test_start_rejects_invalid_target_before_remote_registration(self):
         user = build_user()
@@ -108,11 +107,6 @@ class ClockInPreauthorizationApiTest(unittest.TestCase):
         )
 
         with (
-            patch.object(
-                api,
-                "validate_preauthorization_target",
-                side_effect=ValueError("目标日期或类型不在预授权列表中"),
-            ),
             patch.object(api, "ApiClient") as api_client_type,
         ):
             with self.assertRaises(ValueError):
@@ -120,7 +114,7 @@ class ClockInPreauthorizationApiTest(unittest.TestCase):
 
         api_client_type.assert_not_called()
 
-    def test_start_rate_limit_supports_bulk_future_authorization_on_both_surfaces(self):
+    def test_start_rate_limit_is_applied_on_both_surfaces(self):
         user = build_user()
         request = SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"))
         req = api.ClockInPreauthorizationStartRequest(

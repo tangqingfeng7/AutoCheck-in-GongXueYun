@@ -9,16 +9,11 @@ from server.task_runner import perform_clock_in, perform_clock_in_makeup, perfor
 from server.clockin_backfill import build_missing_clockin_day_options, normalize_clockin_records, parse_clockin_date
 from server.clockin_preauthorization import (
     BEIJING_TZ,
-    REGISTRATION_TICKET_TTL_SECONDS,
-    build_alipay_open_urls,
     build_preauthorization_hooks,
     complete_preauthorization,
     iso_utc_datetime,
-    issue_registration_ticket,
     list_preauthorizations,
     parse_plan_end_date,
-    preauthorization_targets,
-    validate_preauthorization_target,
     verify_registration_ticket,
 )
 from server.util.Config import ConfigManager
@@ -324,14 +319,16 @@ def _get_notification_settings(session: Session, tenant_id: str = DEFAULT_TENANT
     row = _notification_settings_row(session, tenant_id)
     value = row.value if row and isinstance(row.value, dict) else {}
     smtp = normalize_smtp_settings(_decode_smtp_settings((value or {}).get("smtp")))
-    return {"smtp": smtp}
+    from server.pushplus_settings import load_pushplus
+    return {"smtp": smtp, "pushplus": load_pushplus(session, tenant_id)}
 
 
 def _sanitize_notification_settings_for_read(settings: Dict[str, Any]) -> Dict[str, Any]:
     smtp = normalize_smtp_settings(settings.get("smtp"))
     has_password = bool(smtp.pop("password", ""))
     smtp["hasPassword"] = has_password
-    return {"smtp": smtp}
+    from server.pushplus_settings import sanitize_pushplus
+    return {"smtp": smtp, "pushplus": sanitize_pushplus(settings.get("pushplus"))}
 
 
 def _resolve_notification_smtp(session: Session, smtp_payload: Dict[str, Any], tenant_id: str):
@@ -357,7 +354,8 @@ def _save_notification_settings(session: Session, smtp_payload: Dict[str, Any], 
     stored_smtp = dict(smtp)
     stored_smtp["password"] = encrypt_secret(str(stored_smtp.get("password") or ""))
     upsert_setting(session, NOTIFICATION_SETTINGS_KEY, {"smtp": stored_smtp}, tenant_id)
-    return {"smtp": smtp}
+    from server.pushplus_settings import load_pushplus
+    return {"smtp": smtp, "pushplus": load_pushplus(session, tenant_id)}
 
 
 def _save_proxy_settings(session: Session, proxy_payload: Dict[str, Any], tenant_id: str = DEFAULT_TENANT_ID) -> Dict[str, Any]:
@@ -602,8 +600,8 @@ class ClockInPreauthorizationStartRequest(BaseModel):
 
 
 class ClockInPreauthorizationCompleteRequest(BaseModel):
-    registration_ticket: Optional[str] = None
-    registration_tickets: List[str] = Field(default_factory=list)
+    model_config = {"extra": "forbid"}
+    registration_ticket: str
 
 
 class ClockInPreauthorizationItemResponse(BaseModel):
@@ -633,8 +631,6 @@ class ClockInPreauthorizationListResponse(BaseModel):
 
 class ClockInPreauthorizationStartResponse(BaseModel):
     registration_ticket: str
-    registration_tickets: List[str] = Field(default_factory=list)
-    target_count: int = 1
     direct_url: str
     browser_url: str
     started_at: str
@@ -1003,42 +999,11 @@ def _preauthorization_target_values(
 def _preauthorization_ticket_values(
     req: ClockInPreauthorizationCompleteRequest,
 ) -> List[str]:
-    values = [str(value or "").strip() for value in req.registration_tickets]
-    if req.registration_ticket:
-        values.insert(0, str(req.registration_ticket).strip())
-    tickets = list(dict.fromkeys(value for value in values if value))
-    if not tickets:
+    ticket = str(req.registration_ticket or "").strip()
+    if not ticket:
         raise ValueError("预授权登记票据不能为空")
-    if len(tickets) > 500:
-        raise ValueError("单次预授权目标过多")
-    return tickets
+    return [ticket]
 
-
-def _bulk_preauthorization_targets(
-    user: User,
-    *,
-    scope: str,
-    session: Optional[Session],
-) -> List[Any]:
-    normalized_scope = str(scope or "future").strip().lower()
-    if normalized_scope != "future":
-        raise ValueError("一个二维码仅支持今天及未来的上下班预授权")
-    targets = preauthorization_targets(user, scope=normalized_scope)
-    if session is None or not targets:
-        return targets
-    active = session.exec(
-        select(ClockInPreauthorization).where(
-            (ClockInPreauthorization.tenant_id == user.tenant_id)
-            & (ClockInPreauthorization.user_id == user.id)
-            & (ClockInPreauthorization.status == "authorized")
-        )
-    ).all()
-    active_keys = {(row.target_date, row.target_type) for row in active}
-    return [
-        row
-        for row in targets
-        if (row.target_date, row.target_type) not in active_keys
-    ]
 
 
 def _sync_preauthorization_plan(
@@ -1103,96 +1068,6 @@ def _start_clockin_preauthorization_for_user(
     raise ValueError(
         "官方接口不支持提前或批量预授权，请从本次打卡触发的304验证窗口完成授权"
     )
-
-
-def _legacy_start_clockin_preauthorization_for_user(
-    user: User,
-    req: ClockInPreauthorizationStartRequest,
-    *,
-    session: Optional[Session] = None,
-) -> Dict[str, Any]:
-    """旧实现仅保留用于迁移和回滚，不再由路由调用。"""
-    is_bulk = not req.target_date and not req.target_type
-    if bool(req.target_date) != bool(req.target_type):
-        raise ValueError("预授权日期和类型必须同时提供")
-    try:
-        parse_plan_end_date(user.planInfo)
-    except ValueError:
-        _sync_preauthorization_plan(user, force=True)
-    if is_bulk:
-        targets = _bulk_preauthorization_targets(
-            user,
-            scope=req.scope,
-            session=session,
-        )
-        if not targets:
-            raise ValueError("今天及未来没有需要授权的打卡记录")
-    else:
-        target_date, target_type = _preauthorization_target_values(req)
-        target = validate_preauthorization_target(
-            user,
-            target_date=target_date,
-            target_type=target_type,
-        )
-        targets = [target]
-        if session is not None:
-            existing = session.exec(
-                select(ClockInPreauthorization).where(
-                    (ClockInPreauthorization.tenant_id == user.tenant_id)
-                    & (ClockInPreauthorization.user_id == user.id)
-                    & (ClockInPreauthorization.target_date == target_date)
-                    & (ClockInPreauthorization.target_type == target_type)
-                    & (ClockInPreauthorization.status == "authorized")
-                )
-            ).first()
-            if existing is not None:
-                raise ValueError("该日期已有有效预授权")
-
-    api_client, config_data = _sync_preauthorization_plan(user, force=False)
-    if is_bulk:
-        targets = _bulk_preauthorization_targets(
-            user,
-            scope=req.scope,
-            session=session,
-        )
-        if not targets:
-            raise ValueError("今天及未来没有需要授权的打卡记录")
-    else:
-        validate_preauthorization_target(
-            user,
-            target_date=target_date,
-            target_type=target_type,
-        )
-    registration = api_client.create_alipay_clockin_verification()
-    started_at = datetime.datetime.now(BEIJING_TZ)
-    direct_url, browser_url = build_alipay_open_urls(
-        str(registration.get("registerUrl") or ""),
-        account=str(user.phone or ""),
-        started_at=started_at,
-    )
-    registration_tickets = [
-        issue_registration_ticket(
-            tenant_id=user.tenant_id,
-            user_id=int(user.id),
-            target_date=target.target_date,
-            target_type=target.target_type,
-            out_register_no=str(registration.get("outRegisterNo") or ""),
-            started_at=started_at,
-        )
-        for target in targets
-    ]
-    return {
-        "registration_ticket": registration_tickets[0],
-        "registration_tickets": registration_tickets,
-        "target_count": len(registration_tickets),
-        "direct_url": direct_url,
-        "browser_url": browser_url,
-        "started_at": started_at.isoformat(),
-        "expires_at": (
-            started_at
-            + datetime.timedelta(seconds=REGISTRATION_TICKET_TTL_SECONDS)
-        ).isoformat(),
-    }
 
 
 def _serialize_preauthorization_record(
@@ -2948,6 +2823,10 @@ class NotificationSettingsTestRequest(BaseModel):
     smtp: Dict[str, Any]
 
 
+class PushPlusSettingsRequest(BaseModel):
+    pushplus: Dict[str, Any]
+
+
 class ProxySettingsUpdateRequest(BaseModel):
     proxy: Dict[str, Any]
 
@@ -3157,6 +3036,44 @@ def test_notification_smtp(
         raise HTTPException(status_code=400, detail="请填写发件人名称")
     to = send_test_smtp_message(smtp)
     return {"ok": True, "to": to}
+
+
+@router.patch("/settings/notifications/pushplus")
+def update_notification_pushplus(
+    *, req: PushPlusSettingsRequest, response: Response,
+    session: Session = Depends(get_session), admin: dict = Depends(require_settings_manage),
+):
+    from server.pushplus_settings import save_pushplus
+    response.headers["Cache-Control"] = "no-store"
+    tenant_id = tenant_id_from_payload(admin)
+    try:
+        clean = save_pushplus(session, req.pushplus, tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    session.add(AuditLog(tenant_id=tenant_id, actor=admin.get("sub"),
+                         action="settings.pushplus.update", target_user_id=None,
+                         detail={"enabled": clean["enabled"], "uploadQr": clean["uploadQr"]}))
+    session.commit()
+    return {"pushplus": clean}
+
+
+@router.post("/settings/notifications/pushplus/test")
+def test_notification_pushplus(
+    *, req: PushPlusSettingsRequest,
+    session: Session = Depends(get_session), admin: dict = Depends(require_settings_manage),
+):
+    from server.pushplus_settings import load_pushplus, resolve_pushplus
+    from server.pushplus_delivery import send_message
+    try:
+        config = resolve_pushplus(req.pushplus, load_pushplus(session, tenant_id_from_payload(admin)))
+        if req.pushplus.get("testChannel") == "clawbot":
+            config["type"] = "ClawBot"
+        state = send_message(config, "工学云微信推送测试", "<p>项目 PushPlus 通知通道测试，不触发签到或授权。</p>")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    except Exception:
+        raise HTTPException(status_code=502, detail="PushPlus 测试未确认，请检查微信和配置；不会自动重发") from None
+    return {"ok": True, "status": state}
 
 
 @router.get("/settings/proxy")

@@ -12,7 +12,6 @@ const props = defineProps({
   expiresAt: { type: String, default: '' },
   targetDate: { type: String, default: '' },
   targetType: { type: String, default: '' },
-  targetCount: { type: Number, default: 1 },
   completing: { type: Boolean, default: false },
 })
 
@@ -50,7 +49,6 @@ watch(safeBrowserUrl, async (value) => {
 }, { immediate: true })
 
 const targetLabel = computed(() => {
-  if (props.targetType === 'BULK') return `共 ${props.targetCount} 次打卡`
   if (props.targetType === 'START') return '上班'
   if (props.targetType === 'END') return '下班'
   return '补卡'
@@ -131,7 +129,7 @@ const beforeClose = (done) => {
         <el-tag size="small" type="info">{{ targetLabel }}</el-tag>
       </div>
       <p class="authorization-message">
-        选择一种方式打开支付宝并完成授权，返回本页后再确认完成。批量预授权只需扫描这一个二维码。
+        选择一种方式打开支付宝并完成当次授权，返回本页后再确认完成。
       </p>
       <div v-if="qrDataUrl" class="qr-panel">
         <img :src="qrDataUrl" alt="支付宝预授权二维码" class="authorization-qr" />

@@ -41,6 +41,20 @@
         </el-form>
       </el-tab-pane>
 
+      <el-tab-pane label="微信 PushPlus" name="pushplus">
+        <el-form :model="pushplusForm" label-width="150px" v-loading="notificationLoading">
+          <el-alert title="发送当前租户的签到结果、待授权和异常恢复提醒。优先兜底模式：ClawBot → 微信公众号 → 邮箱；仅查到通道已发送才停止，受理但未确认也会降级，可能收到重复提醒。凭据加密保存，留空保留。" type="info" :closable="false" style="margin-bottom:16px" />
+          <el-form-item label="启用微信推送"><el-switch v-model="pushplusForm.enabled" /></el-form-item>
+          <el-form-item label="启用 ClawBot"><el-switch v-model="pushplusForm.clawbotEnabled" /></el-form-item>
+          <el-form-item label="优先渠道与邮箱兜底"><el-switch v-model="pushplusForm.fallbackEnabled" /></el-form-item>
+          <el-form-item label="Token"><el-input v-model="pushplusForm.token" type="password" show-password autocomplete="new-password" :placeholder="pushplusForm.hasToken ? '已保存，留空保留' : 'PushPlus Token'" /></el-form-item>
+          <el-form-item label="上传授权二维码"><el-switch v-model="pushplusForm.uploadQr" /></el-form-item>
+          <el-alert title="二维码在本地生成。开启后上传至 PushPlus 官方图片服务（需要 SecretKey 和图片服务权限），授权内容会交给该服务保存；关闭或上传失败时仍发送授权链接，二维码可查看邮件或管理页面。微信可能拦截支付宝跳转，可复制链接到浏览器打开。" type="warning" :closable="false" style="margin-bottom:16px" />
+          <el-form-item label="SecretKey（可选）"><el-input v-model="pushplusForm.secretKey" type="password" show-password autocomplete="new-password" :placeholder="pushplusForm.hasSecretKey ? '已保存，留空保留' : '仅官方图片上传需要'" /></el-form-item>
+          <el-form-item><el-button type="primary" :loading="pushplusSaving" @click="savePushplus">保存</el-button><el-button :loading="pushplusTesting.wechat" @click="testPushplus()">测试公众号</el-button><el-button :loading="pushplusTesting.clawbot" @click="testPushplus('clawbot')">测试 ClawBot</el-button></el-form-item>
+        </el-form>
+      </el-tab-pane>
+
       <el-tab-pane label="AI 大模型" name="ai">
         <el-form :model="aiForm" label-width="140px" v-loading="aiLoading">
           <el-form-item label="Model">
@@ -132,6 +146,9 @@ const activeTab = ref('notifications')
 const notificationLoading = ref(false)
 const notificationSaving = ref(false)
 const smtpTesting = ref(false)
+const pushplusSaving = ref(false)
+const pushplusTesting = reactive({ wechat: false, clawbot: false })
+const pushplusForm = reactive({ enabled: false, token: '', secretKey: '', uploadQr: false, clawbotEnabled: false, fallbackEnabled: false, hasToken: false, hasSecretKey: false })
 const aiLoading = ref(false)
 const aiSaving = ref(false)
 const aiTesting = ref(false)
@@ -168,6 +185,7 @@ const loadNotificationSettings = async () => {
   try {
     const res = await http.get('/settings/notifications')
     const smtp = res.data?.smtp || {}
+    Object.assign(pushplusForm, res.data?.pushplus || {}, { token: '', secretKey: '' })
     smtpForm.enabled = !!smtp.enabled
     smtpForm.username = String(smtp.username || '')
     smtpForm.password = ''
@@ -304,6 +322,30 @@ const saveNotifications = async () => {
   } finally {
     notificationSaving.value = false
   }
+}
+
+const pushplusPayload = () => ({ pushplus: { enabled: pushplusForm.enabled, token: pushplusForm.token.trim(), secretKey: pushplusForm.secretKey.trim(), uploadQr: pushplusForm.uploadQr, clawbotEnabled: pushplusForm.clawbotEnabled, fallbackEnabled: pushplusForm.fallbackEnabled } })
+const savePushplus = async () => {
+  pushplusSaving.value = true
+  try {
+    await http.patch('/settings/notifications/pushplus', pushplusPayload())
+    await loadNotificationSettings()
+    notifySuccess('微信推送设置已保存')
+  } catch (error) {
+    notifyError(resolveErrorMessage(error, '保存失败'))
+  } finally { pushplusSaving.value = false }
+}
+const testPushplus = async (testChannel = 'wechat') => {
+  if (!['wechat', 'clawbot'].includes(testChannel) || pushplusTesting[testChannel]) return
+  pushplusTesting[testChannel] = true
+  try {
+    const payload = pushplusPayload()
+    payload.pushplus.testChannel = testChannel
+    await http.post('/settings/notifications/pushplus/test', payload)
+    notifySuccess(`${testChannel === 'clawbot' ? 'ClawBot' : '公众号'}测试已受理，请到微信确认是否收到`)
+  } catch (error) {
+    notifyError(resolveErrorMessage(error, '测试未确认'))
+  } finally { pushplusTesting[testChannel] = false }
 }
 
 const saveProxy = async () => {

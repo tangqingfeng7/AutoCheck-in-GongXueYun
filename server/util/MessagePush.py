@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 class MessagePusher:
     STATUS_EMOJIS = {"success": "✅", "fail": "❌", "pending": "⏳", "skip": "⏭️", "unknown": "❓"}
-    SUPPORTED_TYPES = {"Server", "SMTP"}
+    SUPPORTED_TYPES = {"Server", "SMTP", "PushPlus", "ClawBot"}
     SMTP_HOST = "smtp.qq.com"
     SMTP_PORT = 465
 
@@ -34,6 +34,8 @@ class MessagePusher:
         self.push_config = push_config or []
 
     def push(self, results: List[Dict[str, Any]]) -> list:
+        if any(isinstance(cfg, dict) and cfg.get("fallbackEnabled") for cfg in self.push_config):
+            return self._push_fallback(results)
         delivery_states = []
         skip_count = sum(1 for result in results if result.get("status") == "skip")
         if results and skip_count == len(results):
@@ -57,6 +59,27 @@ class MessagePusher:
                 if service_type == "Server":
                     self._server_push(service_config, title, self._generate_markdown_message(results))
                     delivery_states.append({"type": "Server", "status": "sent"})
+                elif service_type in {"PushPlus", "ClawBot"}:
+                    from server.pushplus_delivery import send_message
+                    content = self._generate_html_message(results).replace("</body></html>", "")
+                    for result in self._verification_results(results):
+                        details = result["details"]
+                        direct_url = self._safe_alipay_url(details.get("registerUrl"))
+                        browser_url = self._alipay_browser_url(direct_url)
+                        content += '<h3>签到需要授权</h3><p>微信可能拦截支付宝跳转，请复制链接到浏览器或支付宝打开。</p>'
+                        if service_config.get("uploadQr") and service_config.get("secretKey"):
+                            try:
+                                from server.pushplus_delivery import upload_qr
+                                image_url = upload_qr(service_config, self._qr_png(direct_url))
+                                content += '<img width="320" src="' + html.escape(image_url, quote=True) + '" alt="授权二维码" />'
+                            except Exception as exc:
+                                logger.warning("PushPlus 二维码上传失败: %s", type(exc).__name__)
+                                content += '<p>二维码上传失败，请使用以下链接或查看邮件二维码。</p>'
+                        else:
+                            content += '<p>未启用官方图片上传，二维码请查看邮件或管理页面。</p>'
+                        content += '<p><a href="' + html.escape(browser_url, quote=True) + '">打开支付宝授权</a></p><p>复制链接：</p><code>' + html.escape(direct_url) + '</code><p>授权链接请勿转发。完成授权不代表签到成功，请回查考勤结果。</p>'
+                    state = send_message(service_config, title, content + "</body></html>")
+                    delivery_states.append({"type": service_type, "status": state})
                 elif service_type == "SMTP":
                     verification_results = self._verification_results(results)
                     for result in verification_results:
@@ -79,8 +102,24 @@ class MessagePusher:
                         delivery_states.append({"type": "SMTP", "status": state})
             except Exception as exc:
                 logger.error("%s 消息推送失败: %s", service_type, type(exc).__name__)
-                delivery_states.append({"type": service_type, "status": "enqueue_failed"})
+                state = "uncertain" if service_type in {"PushPlus", "ClawBot"} and isinstance(exc, (requests.Timeout, requests.ConnectionError)) else "enqueue_failed"
+                delivery_states.append({"type": service_type, "status": state})
         return delivery_states
+
+    def _push_fallback(self, results):
+        states = []
+        for kind in ("ClawBot", "PushPlus", "SMTP"):
+            config = next((cfg for cfg in self.push_config if isinstance(cfg, dict)
+                           and cfg.get("type") == kind and cfg.get("enabled")), None)
+            if config is None:
+                continue
+            # One attempt per channel; unknown online delivery falls forward, never replayed.
+            config = {**config, "fallbackEnabled": False, "confirmDelivery": True}
+            attempt = MessagePusher([config]).push(results)
+            states.extend(attempt)
+            if kind != "SMTP" and any(item.get("status") == "provider_sent" for item in attempt):
+                break
+        return states
 
     @staticmethod
     def _safe_alipay_url(value: Any) -> str:

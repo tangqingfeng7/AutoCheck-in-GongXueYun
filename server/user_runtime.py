@@ -167,6 +167,7 @@ def build_effective_push_notifications(
     *,
     user_push: Any,
     smtp_settings: Any,
+    pushplus_settings: Any = None,
 ) -> List[Dict[str, Any]]:
     user_items = normalize_push_notifications(user_push)
     user_map = _collect_push_items(user_items)
@@ -183,7 +184,14 @@ def build_effective_push_notifications(
         "from": str(global_smtp.get("from") or DEFAULT_SMTP_FROM).strip() or DEFAULT_SMTP_FROM,
         "to": str(user_smtp.get("to") or "").strip(),
     }
-    return [server_item, smtp_item]
+    services = [server_item, smtp_item]
+    if pushplus_settings is not None:
+        from server.pushplus_settings import normalize_pushplus
+        online = normalize_pushplus(pushplus_settings)
+        if online["clawbotEnabled"]:
+            services.append({**online, "type": "ClawBot"})
+        services.append(online)
+    return services
 
 
 def user_to_config(

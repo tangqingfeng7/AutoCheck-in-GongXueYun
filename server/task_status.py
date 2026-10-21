@@ -55,6 +55,7 @@ def detect_user(user, now=None):
     from server.util.Config import ConfigManager
     from server.scheduler import user_to_config
     from server.task_runner import _load_global_smtp_settings
+    from server.pushplus_settings import load_global_pushplus
     from server.user_runtime import build_effective_push_notifications, runtime_login_valid
     from server.util.MessagePush import MessagePusher
     now = now or dt.datetime.now(TZ)
@@ -101,7 +102,8 @@ def detect_user(user, now=None):
                 cancel_pending(s, user.tenant_id, incident_id=check.get("incident_id"))
         upsert_setting(s, key, snapshot, user.tenant_id); s.commit()
     smtp = build_effective_push_notifications(user_push=user.pushNotifications,
-                                              smtp_settings=_load_global_smtp_settings(user.tenant_id))
+                                              smtp_settings=_load_global_smtp_settings(user.tenant_id),
+                                              pushplus_settings=load_global_pushplus(user.tenant_id, db_engine=engine))
     for cfg in smtp:
         cfg["tenant_id"] = user.tenant_id
     for check in checks:
@@ -117,12 +119,12 @@ def detect_user(user, now=None):
                                   "message": message, "details": {"日期": snapshot["day"],
                                   "类型": check["target_type"], "检测状态": state,
                                   "通知事件": check.get("incident_id")}}])
-        smtp_states = [item.get("status") for item in delivered or [] if isinstance(item, dict) and item.get("type") == "SMTP"]
+        smtp_states = [item.get("status") for item in delivered or [] if isinstance(item, dict) and item.get("type") in {"SMTP", "PushPlus", "ClawBot", "Server"}]
         if smtp_states:
             check["notification_state"] = smtp_states[-1]
         else:
             check["notification_state"] = "disabled"
-        if any(status in {"sent", "queued", "retry", "sending", "uncertain"} for status in smtp_states):
+        if any(status in {"sent", "provider_sent", "accepted", "queued", "retry", "sending", "uncertain"} for status in smtp_states):
             check["recovery_pending" if recovery else "alert_pending"] = False
     with Session(engine) as s:
         upsert_setting(s, key, snapshot, user.tenant_id); s.commit()

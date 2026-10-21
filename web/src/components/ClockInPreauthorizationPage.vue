@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, shallowRef } from 'vue'
+import { useRouter } from 'vue-router'
 import { http } from '../api/http'
 import { userHttp } from '../api/userHttp'
 import { notifyError, notifySuccess, resolveErrorMessage } from '../utils/notify'
@@ -11,7 +12,14 @@ const props = defineProps({
   userId: { type: Number, default: null },
 })
 
-const PAGE_SIZE = 20
+const router = useRouter()
+const goBack = () => {
+  const back = window.history.state?.back
+  if (typeof back === 'string' && back.startsWith('/') && !back.startsWith('//')) router.back()
+  else router.replace(props.mode === 'user' ? '/u' : '/')
+}
+
+const PAGE_SIZE = 10
 
 const createListState = () => reactive({
   items: [],
@@ -43,7 +51,6 @@ const metadata = reactive({
 const dialogVisible = shallowRef(false)
 const completing = shallowRef(false)
 const startingKey = shallowRef('')
-const bulkStarting = shallowRef(false)
 const pastExpanded = shallowRef(false)
 const authorizationSession = shallowRef(null)
 const selectedTarget = shallowRef(null)
@@ -183,10 +190,6 @@ const startAuthorization = () => {
   notifyError('官方接口不支持提前授权，请在本次打卡触发安全验证后完成授权')
 }
 
-const startBulkAuthorization = () => {
-  notifyError('官方接口不支持一键全部预授权；每次验证必须绑定当次考勤记录')
-}
-
 const clearAuthorizationSession = () => {
   authorizationSession.value = null
   selectedTarget.value = null
@@ -199,7 +202,6 @@ const completeAuthorization = async () => {
   try {
     await apiClient.value.post(`${apiBase.value}/complete`, {
       registration_ticket: ticket,
-      registration_tickets: authorizationSession.value?.registrationTickets || [],
     })
     const scope = selectedTarget.value?.scope
     dialogVisible.value = false
@@ -226,22 +228,15 @@ onMounted(loadFuture)
         </p>
       </div>
       <div class="page-actions">
+        <el-button @click="goBack">返回</el-button>
         <el-button :loading="future.loading" @click="refreshPlan">
           同步实习计划
-        </el-button>
-        <el-button
-          type="primary"
-          :loading="bulkStarting"
-          disabled
-          @click="startBulkAuthorization"
-        >
-          一键全部预授权（已停用）
         </el-button>
       </div>
     </header>
 
     <el-alert
-      title="提前或批量预授权已停用"
+      title="授权需在本次打卡触发验证后完成"
       description="支付宝安全验证必须绑定本次打卡返回的304考勤事务。请从首页执行打卡，并在弹出的验证窗口中完成当次授权。"
       type="warning"
       :closable="false"
@@ -301,7 +296,7 @@ onMounted(loadFuture)
       >
         <span>
           <strong>过去日期与补卡</strong>
-          <small>每天只需授权一次，可用于当日上班或下班补卡</small>
+          <small>查看历史记录，验证仍需绑定当次考勤</small>
         </span>
         <span class="toggle-state">{{ pastExpanded ? '收起' : '展开' }}</span>
       </button>
@@ -339,7 +334,6 @@ onMounted(loadFuture)
       :expires-at="authorizationSession?.expiresAt || ''"
       :target-date="selectedTarget?.date || ''"
       :target-type="selectedTarget?.type || ''"
-      :target-count="authorizationSession?.targetCount || 1"
       :completing="completing"
       @complete="completeAuthorization"
       @closed="clearAuthorizationSession"
@@ -350,8 +344,13 @@ onMounted(loadFuture)
 <style scoped>
 .preauthorization-page {
   display: grid;
-  gap: 18px;
+  gap: 12px;
   min-width: 0;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 .page-header,
@@ -370,7 +369,7 @@ onMounted(loadFuture)
 }
 
 .page-title {
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.3;
 }
 
@@ -408,7 +407,7 @@ onMounted(loadFuture)
   justify-content: space-between;
   gap: 10px;
   min-width: 0;
-  padding: 12px 16px;
+  padding: 8px 12px;
   border-right: 1px solid var(--el-border-color-light);
 }
 
@@ -429,7 +428,7 @@ onMounted(loadFuture)
 
 .list-section,
 .past-section {
-  padding: 16px;
+  padding: 12px;
   border: 1px solid var(--el-border-color-light);
   border-radius: 6px;
   background: var(--el-bg-color);
@@ -501,6 +500,13 @@ onMounted(loadFuture)
 }
 
 @media (max-width: 768px) {
+  .preauthorization-page {
+    padding: 12px;
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+  }
   .page-header,
   .section-heading {
     align-items: flex-start;

@@ -1034,9 +1034,11 @@ def run_task_by_config(
     pusher = None
 
     try:
+        from server.pushplus_settings import load_global_pushplus
         push_services = build_effective_push_notifications(
                 user_push=config.get_value("config.pushNotifications"),
                 smtp_settings=_load_global_smtp_settings(_tenant_id_from_config(config_data)),
+                pushplus_settings=load_global_pushplus(_tenant_id_from_config(config_data), db_engine=engine),
             )
         for service in push_services:
             service["tenant_id"] = _tenant_id_from_config(config_data)

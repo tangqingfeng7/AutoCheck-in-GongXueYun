@@ -72,6 +72,7 @@ const formatDateTime = (value) => {
       class="desktop-table"
       :data="items"
       :row-key="rowKey"
+      max-height="440"
       size="small"
     >
       <el-table-column prop="target_date" label="日期" min-width="118" />
@@ -188,6 +189,8 @@ const formatDateTime = (value) => {
 
 .mobile-list {
   display: none;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
 }
 
 .pagination-row {
