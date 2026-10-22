@@ -258,7 +258,7 @@ class ResumeSessionTest(DatabaseCase):
             stored=get_setting(s,verification.PREFIX+result['details']['verification_session_id']).value
             self.assertEqual(json.loads(decrypt_secret(stored['payload']))['submission_context'],context)
 
-    def test_explicit_resume_routes_and_frontend_warning(self):
+    def test_resume_routes_remain_compatible_and_frontend_is_automatic(self):
         from server.main import app
         paths={r.path for r in app.routes}
         self.assertIn('/api/users/{user_id}/verification-sessions/{session_id}/resume',paths)
@@ -269,7 +269,7 @@ class ResumeSessionTest(DatabaseCase):
         self.assertEqual(response.headers['cache-control'],'no-store');resume.assert_called_once()
         root=Path(__file__).resolve().parents[1]
         frontend=(root/'web/src/components/TaskStatusPanel.vue').read_text(encoding='utf-8')
-        self.assertIn('/resume`',frontend);self.assertIn('授权完成，续提一次',frontend)
+        self.assertNotIn('resumeVerification',frontend);self.assertIn('确认后自动续提一次',frontend)
 
 
 if __name__=='__main__':unittest.main()

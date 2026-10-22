@@ -424,6 +424,9 @@ def start_scheduler():
     scheduler.start()
     from server.mail_delivery import process_outbox
     from server.task_status import detect_missed_executions
+    from server.verification_sessions import process_pending_sessions, VERIFICATION_POLL_SECONDS
+    scheduler.add_job(process_pending_sessions, "interval", seconds=VERIFICATION_POLL_SECONDS, id="verification_sessions",
+                      replace_existing=True, max_instances=1, coalesce=True)
     scheduler.add_job(process_outbox, "interval", seconds=10, id="mail_outbox",
                       replace_existing=True, max_instances=1, coalesce=True)
     scheduler.add_job(detect_missed_executions, "interval", seconds=60, id="attendance_monitor",

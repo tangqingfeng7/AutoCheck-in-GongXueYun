@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "lint": "node ../scripts/frontend_quality_gate.mjs",
-    "test": "npm run test:static",
+    "test": "npm run test:static && npm run test:verification",
     "test:static": "node ../scripts/frontend_quality_gate.mjs",
+    "test:verification": "node ../tests/frontend_verification_polling.mjs && node ../tests/frontend_clear_verification_sessions.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

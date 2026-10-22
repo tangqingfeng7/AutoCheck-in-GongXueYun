@@ -43,9 +43,9 @@ const beforeClose = (done) => {
       <div class="verification-message">
         {{ isFaceVerification
           ? '请在支付宝完成人脸识别，返回后确认服务器考勤记录。'
-          : '请在支付宝完成验证后检查本次考勤记录，不会重复提交签到。' }}
+          : '请在支付宝完成本人验证，后台将自动检测并续提一次，无需手动操作。' }}
       </div>
-      <p v-if="!isFaceVerification">此处按钮只回查。需续提时，请到任务状态面板选择“授权完成，续提一次”；仅支持已保存原请求且能识别官方验证响应的事务。</p>
+      <p v-if="!isFaceVerification">后台每 3 秒检测授权状态；仅支持已保存原请求且能识别官方验证响应的事务。续提后以服务端考勤记录确认成功，超时不重复发送。</p>
       <el-alert
         v-if="!safeRegisterUrl"
         title="验证链接不可用，请关闭后重新发起打卡"

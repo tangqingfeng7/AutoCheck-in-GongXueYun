@@ -17,6 +17,7 @@ from server.attendance_reconciliation import reconcile_user
 from server.execution_locks import acquire_task_lock, release_task_lock
 
 PREFIX = "verification-session:"
+VERIFICATION_POLL_SECONDS = 3
 TERMINAL = {"record_confirmed", "superseded", "expired"}
 PUBLIC_FIELDS = {"id", "user_id", "attendance_date", "target_type", "verification_type", "state",
                  "created_at", "expires_at", "updated_at", "last_checked", "verification_confirmed",
@@ -161,7 +162,7 @@ def check_session(user, sid, *, db_engine=None):
     try:
         with Session(db) as s:
             value = dict(_owned(s, user, sid).value)
-        if value["state"] == "record_confirmed" or time.time() - value.get("last_checked", 0) < 15:
+        if value["state"] == "record_confirmed" or time.time() - value.get("last_checked", 0) < VERIFICATION_POLL_SECONDS:
             return public(value)
         from server.coreApi.MainLogicApi import ApiClient
         from server.user_runtime import user_to_config, runtime_login_valid
@@ -177,7 +178,7 @@ def check_session(user, sid, *, db_engine=None):
         # A 200/null response acknowledges this query, not the final attendance.
         # Keep querying while the transaction is pending: the user may finish
         # authorization after an earlier check. Only a confirmed record or TTL
-        # ends checks; the 15-second throttle above still prevents double clicks.
+        # ends checks; the shared polling throttle still prevents double clicks.
         if value["verification_type"] == "account" and not expired:
             try:
                 payload = json.loads(decrypt_secret(value["payload"]))
@@ -241,7 +242,7 @@ def check_session(user, sid, *, db_engine=None):
 
 
 def resume_session(user, sid, *, db_engine=None):
-    """Explicitly continue the original transaction at most once, not /check.
+    """Continue the original transaction at most once, not /check.
 
     Persist the claim BEFORE any write request. A crash, timeout or unknown
     response thereafter is read-only: absence of a record is not proof that a
@@ -348,6 +349,44 @@ def resume_session(user, sid, *, db_engine=None):
     finally:
         release_task_lock(job_lock, db_engine=db)
         release_task_lock(token, db_engine=db)
+
+
+def process_pending_sessions(*, db_engine=None):
+    """Detect completed authorization without requiring an open browser.
+
+    /check stays read-only. Automatic continuation shares the explicit resume
+    path's fresh official checks, locks and durable at-most-once claim.
+    Include manually initiated sessions even when scheduled clock-in is off.
+    """
+    import logging
+    from server.scheduler import _is_user_tenant_active
+    db = db_engine if db_engine is not None else engine
+    now = time.time()
+    with Session(db) as s:
+        rows = s.exec(select(SystemSetting).where(SystemSetting.key.contains(PREFIX))).all()
+        pending = [(row.tenant_id, dict(row.value or {})) for row in rows
+                   if (row.value or {}).get("state") not in TERMINAL
+                   and (row.value or {}).get("expires_at", 0) > now
+                   and now - (row.value or {}).get("last_checked", 0) >= VERIFICATION_POLL_SECONDS]
+    for tenant_id, meta in pending:
+        try:
+            with Session(db) as s:
+                user = s.get(User, meta.get("user_id"))
+                if (not user or user.tenant_id != tenant_id or user.deleted_at is not None
+                        or not _is_user_tenant_active(s, user)):
+                    continue
+                s.expunge(user)
+            state = check_session(user, meta["id"], db_engine=db)
+            if (state.get("verification_confirmed") and state.get("resume_available")
+                    and state.get("check_state") == "checked"):
+                resume_session(user, meta["id"], db_engine=db)
+        except HTTPException as exc:
+            # A busy lease or unavailable official check is retried by the next
+            # scan, but a claimed write can never be sent again.
+            logging.getLogger(__name__).debug("授权自动处理暂不可用 status=%s", exc.status_code)
+        except Exception as exc:
+            # Never log the encrypted context, registration or upstream body.
+            logging.getLogger(__name__).error("授权自动处理失败 type=%s", type(exc).__name__)
 
 
 def cleanup_sessions():
